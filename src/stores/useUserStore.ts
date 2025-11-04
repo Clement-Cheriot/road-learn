@@ -57,6 +57,21 @@ export const useUserStore = create<UserStore>((set, get) => ({
     const { progress } = get();
     if (!progress) return;
 
+    // Ne pas mettre à jour les stats pour "mixte" car ce n'est pas une vraie catégorie
+    if (category === 'mixte') {
+      set({
+        progress: {
+          ...progress,
+          totalQuestions: progress.totalQuestions + 1,
+          totalCorrectAnswers: correct 
+            ? progress.totalCorrectAnswers + 1 
+            : progress.totalCorrectAnswers,
+          lastPlayedAt: new Date(),
+        },
+      });
+      return;
+    }
+
     const categoryStats = progress.categoryStats[category];
     const newCorrectAnswers = correct 
       ? categoryStats.correctAnswers + 1 

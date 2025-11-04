@@ -2,9 +2,9 @@
  * Page Quiz - Moteur de jeu principal
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Timer, Volume2, VolumeX, Check, X } from 'lucide-react';
+import { Timer, Volume2, VolumeX, Check, X, Home, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -12,6 +12,8 @@ import { useQuizStore } from '@/stores/useQuizStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { createStorageService } from '@/services/storage/StorageServiceFactory';
 import { createAudioService } from '@/services/audio/AudioServiceFactory';
+import { useVoiceCommands } from '@/hooks/useVoiceCommands';
+import { useTimerSounds } from '@/hooks/useTimerSounds';
 import type { Category, Question, QuizSession, UserAnswer } from '@/types/quiz.types';
 
 const Quiz = () => {
@@ -34,8 +36,11 @@ const Quiz = () => {
   const { progress, updateXP, updateCategoryStats } = useUserStore();
   
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<Date>(new Date());
+  const [isReadingQuestion, setIsReadingQuestion] = useState(false);
+  const [timerStarted, setTimerStarted] = useState(false);
 
   useEffect(() => {
     if (category) {
@@ -49,8 +54,9 @@ const Quiz = () => {
     }
   }, [currentSession?.isComplete]);
 
+  // Démarrer le timer uniquement après la lecture de la question
   useEffect(() => {
-    if (!showFeedback && timeRemaining > 0) {
+    if (!showFeedback && timeRemaining > 0 && timerStarted && !isReadingQuestion) {
       const timer = setTimeout(() => {
         setTimeRemaining(timeRemaining - 1);
       }, 1000);
@@ -58,24 +64,69 @@ const Quiz = () => {
       return () => clearTimeout(timer);
     }
 
-    if (timeRemaining === 0 && !showFeedback) {
+    if (timeRemaining === 0 && !showFeedback && timerStarted) {
       handleTimeout();
     }
-  }, [timeRemaining, showFeedback]);
+  }, [timeRemaining, showFeedback, timerStarted, isReadingQuestion]);
 
   useEffect(() => {
     if (currentQuestion && audioEnabled) {
+      setTimerStarted(false); // Arrêter le timer pendant la lecture
       speakQuestion();
     }
   }, [currentQuestion]);
 
+  // Sons du timer
+  useTimerSounds(timeRemaining, timerStarted && !showFeedback);
+
+  // Commandes vocales
+  const voiceCommands = useMemo(() => {
+    if (!currentQuestion || showFeedback || isReadingQuestion) return [];
+
+    const commands: Array<{
+      keywords: string[];
+      action: () => void | Promise<void>;
+    }> = currentQuestion.options.map((option) => ({
+      keywords: [option.id, `option ${option.id}`, `réponse ${option.id}`],
+      action: () => handleAnswer(option.id),
+    }));
+
+    // Ajouter commandes générales
+    commands.push({
+      keywords: ['retour', 'menu', 'accueil'],
+      action: () => navigate('/'),
+    });
+
+    if (showFeedback) {
+      commands.push({
+        keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next'],
+        action: () => handleNextQuestion(),
+      });
+    }
+
+    return commands;
+  }, [currentQuestion, showFeedback, isReadingQuestion]);
+
+  const { isListening } = useVoiceCommands(voiceCommands, voiceEnabled);
+
   const initializeQuiz = async (cat: Category) => {
     try {
       const storage = createStorageService();
-      const questions = await storage.getQuestionsByCategory(cat);
+      let allQuestions: Question[] = [];
+
+      // Si catégorie "mixte", charger toutes les questions
+      if (cat === 'mixte') {
+        const categories: Category[] = ['histoire', 'geographie', 'sciences'];
+        for (const category of categories) {
+          const questions = await storage.getQuestionsByCategory(category);
+          allQuestions = [...allQuestions, ...questions];
+        }
+      } else {
+        allQuestions = await storage.getQuestionsByCategory(cat);
+      }
       
       // Sélectionner 5 questions aléatoires
-      const selectedQuestions = questions
+      const selectedQuestions = allQuestions
         .sort(() => Math.random() - 0.5)
         .slice(0, 5);
 
@@ -100,8 +151,13 @@ const Quiz = () => {
   const speakQuestion = async () => {
     if (!currentQuestion) return;
 
+    setIsReadingQuestion(true);
     const audio = createAudioService();
+    
     try {
+      // Arrêter toute lecture en cours
+      await audio.stopSpeaking();
+      
       await audio.speak(currentQuestion.question);
       
       // Lire les options après une pause
@@ -111,8 +167,15 @@ const Quiz = () => {
         await audio.speak(`Option ${option.id}: ${option.text}`);
         await new Promise(resolve => setTimeout(resolve, 600));
       }
+      
+      // Démarrer le timer APRÈS la lecture complète
+      setIsReadingQuestion(false);
+      setTimerStarted(true);
     } catch (error) {
       console.error('Erreur lecture audio:', error);
+      // Démarrer le timer même en cas d'erreur
+      setIsReadingQuestion(false);
+      setTimerStarted(true);
     }
   };
 
@@ -145,8 +208,9 @@ const Quiz = () => {
     }
 
     // Mettre à jour les stats utilisateur
-    if (category && progress) {
-      updateCategoryStats(category, option.isCorrect);
+    if (currentQuestion && progress) {
+      const questionCategory = currentQuestion.category as Category;
+      updateCategoryStats(questionCategory, option.isCorrect);
       if (option.isCorrect) {
         updateXP(currentQuestion.points);
       }
@@ -175,6 +239,8 @@ const Quiz = () => {
   const handleNextQuestion = () => {
     setSelectedOptionId(null);
     setStartTime(new Date());
+    setTimerStarted(false);
+    setIsReadingQuestion(false);
     nextQuestion();
   };
 
@@ -195,26 +261,50 @@ const Quiz = () => {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/')}
+              className="mr-2"
+            >
+              <Home className="h-4 w-4 mr-2" />
+              Retour
+            </Button>
             <span className="text-sm text-muted-foreground">
               Question {currentQuestionIndex + 1}/{currentSession.questions.length}
             </span>
             <Progress value={progressPercentage} className="w-32" />
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setAudioEnabled(!audioEnabled)}
-          >
-            {audioEnabled ? <Volume2 /> : <VolumeX />}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setVoiceEnabled(!voiceEnabled)}
+              className={isListening ? 'text-success' : ''}
+            >
+              {voiceEnabled && isListening ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setAudioEnabled(!audioEnabled)}
+            >
+              {audioEnabled ? <Volume2 /> : <VolumeX />}
+            </Button>
+          </div>
         </div>
 
         {/* Timer */}
         <Card className="mb-6 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Timer className={`h-5 w-5 ${timeRemaining < 10 ? 'text-destructive' : 'text-primary'}`} />
-              <span className="font-mono text-2xl font-bold">{timeRemaining}s</span>
+              <Timer className={`h-5 w-5 ${timeRemaining <= 5 ? 'text-destructive animate-pulse' : 'text-primary'}`} />
+              <span className={`font-mono text-2xl font-bold ${timeRemaining <= 5 ? 'text-destructive' : ''}`}>
+                {isReadingQuestion ? '⏸️' : `${timeRemaining}s`}
+              </span>
+              {isReadingQuestion && (
+                <span className="text-xs text-muted-foreground ml-2">Lecture en cours...</span>
+              )}
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Score</p>
@@ -222,8 +312,8 @@ const Quiz = () => {
             </div>
           </div>
           <Progress 
-            value={timePercentage} 
-            className={`mt-2 ${timeRemaining < 10 ? 'bg-destructive/20' : ''}`}
+            value={isReadingQuestion ? 100 : timePercentage} 
+            className={`mt-2 ${timeRemaining <= 5 ? 'bg-destructive/20' : ''}`}
           />
         </Card>
 

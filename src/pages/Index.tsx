@@ -85,6 +85,7 @@ const Index = () => {
       histoire: 'Histoire',
       geographie: 'Géographie',
       sciences: 'Sciences',
+      mixte: 'Mixte',
     };
     return labels[category];
   };
@@ -94,6 +95,7 @@ const Index = () => {
       histoire: '🏛️',
       geographie: '🌍',
       sciences: '🔬',
+      mixte: '🎲',
     };
     return emojis[category];
   };
@@ -160,9 +162,30 @@ const Index = () => {
           </span>
         </div>
 
+        {/* Quiz Mixte */}
+        <div className="mb-8">
+          <Card
+            className="group cursor-pointer overflow-hidden transition-all hover:scale-105 hover:shadow-primary bg-gradient-primary"
+            onClick={() => startQuiz('mixte')}
+          >
+            <div className="p-6 text-center text-white">
+              <div className="mb-4 text-6xl">🎲</div>
+              <h3 className="mb-2 text-2xl font-bold">Quiz Mixte</h3>
+              <p className="mb-4 text-sm opacity-90">
+                Toutes les catégories mélangées pour un défi complet !
+              </p>
+              <Button variant="secondary" className="w-full">
+                <Mic className="mr-2 h-4 w-4" />
+                Commencer le quiz mixte
+              </Button>
+            </div>
+          </Card>
+        </div>
+
         {/* Catégories */}
+        <h2 className="mb-4 text-center text-xl font-bold">Ou choisis une catégorie</h2>
         <div className="mb-8 grid gap-4 md:grid-cols-3">
-          {(['histoire', 'geographie', 'sciences'] as Category[]).map((category) => (
+          {(['histoire', 'geographie', 'sciences'] as const).map((category) => (
             <Card
               key={category}
               className="group cursor-pointer overflow-hidden transition-all hover:scale-105 hover:shadow-primary"

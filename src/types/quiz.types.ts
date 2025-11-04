@@ -4,7 +4,7 @@
 
 export type QuestionType = 'duo' | 'carre' | 'cash';
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Category = 'histoire' | 'geographie' | 'sciences';
+export type Category = 'histoire' | 'geographie' | 'sciences' | 'mixte';
 
 export interface QuestionOption {
   id: string;
@@ -64,7 +64,7 @@ export interface UserProgress {
   totalQuestions: number;
   streak: number;
   lastPlayedAt: Date;
-  categoryStats: Record<Category, CategoryStats>;
+  categoryStats: Record<Exclude<Category, 'mixte'>, CategoryStats>;
 }
 
 export interface CategoryStats {
