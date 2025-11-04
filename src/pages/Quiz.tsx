@@ -81,26 +81,50 @@ const Quiz = () => {
 
   // Commandes vocales
   const voiceCommands = useMemo(() => {
-    if (!currentQuestion || showFeedback || isReadingQuestion) return [];
+    const commands: Array<{ keywords: string[]; action: () => void | Promise<void> }> = [];
 
-    const commands: Array<{
-      keywords: string[];
-      action: () => void | Promise<void>;
-    }> = currentQuestion.options.map((option) => ({
-      keywords: [option.id, `option ${option.id}`, `réponse ${option.id}`],
-      action: () => handleAnswer(option.id),
-    }));
-
-    // Ajouter commandes générales
+    // Commandes globales toujours actives
+    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: () => navigate('/') });
     commands.push({
-      keywords: ['retour', 'menu', 'accueil'],
-      action: () => navigate('/'),
+      keywords: ['stop lecture', 'arrête la lecture', 'silence'],
+      action: async () => {
+        const audio = createAudioService();
+        try { await audio.stopSpeaking(); } catch {}
+        // Si on arrêtait la lecture de la question, démarrer le timer
+        if (isReadingQuestion && !showFeedback) {
+          setIsReadingQuestion(false);
+          setTimerStarted(true);
+        }
+      },
+    });
+    commands.push({
+      keywords: ['répète', 'répéter', 'redis', 'encore'],
+      action: async () => {
+        const audio = createAudioService();
+        try { await audio.stopSpeaking(); } catch {}
+        await speakQuestion();
+      },
     });
 
-    if (showFeedback) {
-      commands.push({
-        keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next'],
-        action: () => handleNextQuestion(),
+    // Suivant
+    commands.push({
+      keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next'],
+      action: () => {
+        if (showFeedback) return handleNextQuestion();
+        if (isReadingQuestion) {
+          // Arrêter la lecture et démarrer le timer
+          setIsReadingQuestion(false);
+          setTimerStarted(true);
+          const audio = createAudioService();
+          audio.stopSpeaking().catch(() => {});
+        }
+      },
+    });
+
+    // Réponses lorsque la question est affichée et pas de feedback
+    if (currentQuestion && !showFeedback && !isReadingQuestion) {
+      currentQuestion.options.forEach((option) => {
+        commands.push({ keywords: [option.id, `option ${option.id}`, `réponse ${option.id}`], action: () => handleAnswer(option.id) });
       });
     }
 
