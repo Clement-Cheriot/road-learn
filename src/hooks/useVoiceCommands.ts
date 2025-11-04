@@ -11,6 +11,62 @@ interface VoiceCommand {
   action: () => void | Promise<void>;
 }
 
+// Dispatcher global pour permettre plusieurs hooks simultanés sans conflit
+let subscribers: Array<(transcript: string) => void> = [];
+let errorSubscribers: Array<(error: Error) => void> = [];
+let serviceInitialized = false;
+let activeCount = 0;
+let isServiceListening = false;
+
+const ensureService = () => {
+  const speechService = createSpeechService();
+  if (!serviceInitialized) {
+    speechService.onResult((result) => {
+      if (!result.isFinal) return;
+      const transcript = result.transcript.toLowerCase();
+      addVoiceLog('heard', `"${transcript}"`);
+      subscribers.forEach((fn) => {
+        try { fn(transcript); } catch (e) { /* noop */ }
+      });
+    });
+    speechService.onError((error) => {
+      console.error('Erreur reconnaissance vocale:', error);
+      errorSubscribers.forEach((fn) => fn(error));
+      isServiceListening = false;
+    });
+    serviceInitialized = true;
+  }
+  return speechService;
+};
+
+const startGlobalListening = async () => {
+  const speechService = ensureService();
+  try {
+    const available = await speechService.isAvailable();
+    if (!available) {
+      console.warn('Reconnaissance vocale non disponible');
+      return false;
+    }
+    if (!speechService.isListening()) {
+      await speechService.startListening({ language: 'fr-FR', continuous: true, interimResults: false });
+    }
+    isServiceListening = true;
+    return true;
+  } catch (e) {
+    console.error('Erreur initialisation reconnaissance vocale:', e);
+    isServiceListening = false;
+    return false;
+  }
+};
+
+const stopGlobalListeningIfIdle = async () => {
+  const speechService = ensureService();
+  if (activeCount <= 0 && speechService.isListening()) {
+    await speechService.stopListening();
+    isServiceListening = false;
+  }
+};
+
 export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = true) => {
   const [isListening, setIsListening] = useState(false);
   const [lastCommand, setLastCommand] = useState<string>('');
@@ -18,71 +74,44 @@ export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = tr
   useEffect(() => {
     if (!enabled) return;
 
-    const speechService = createSpeechService();
+    const speechService = ensureService();
 
-    const startListening = async () => {
-      try {
-        const available = await speechService.isAvailable();
-        if (!available) {
-          console.log('Reconnaissance vocale non disponible');
-          return;
-        }
-
-        speechService.onResult((result) => {
-          if (!result.isFinal) return;
-
-          const transcript = result.transcript.toLowerCase();
-          console.log('🎤 Commande vocale détectée:', transcript);
+    // Abonné local: fait correspondre et exécute
+    const subscriber = (transcript: string) => {
+      let matched = false;
+      for (const command of commands) {
+        if (command.keywords.some((keyword) => transcript.includes(keyword))) {
+          addVoiceLog('action', `Exécution: ${command.keywords[0]}`);
+          matched = true;
           setLastCommand(transcript);
-          addVoiceLog('heard', `"${transcript}"`);
-
-          // Chercher une commande correspondante
-          let matched = false;
-          for (const command of commands) {
-            if (command.keywords.some(keyword => transcript.includes(keyword))) {
-              console.log('✅ Commande exécutée:', command.keywords[0]);
-              addVoiceLog('action', `Exécution: ${command.keywords[0]}`);
-              matched = true;
-              // Gérer les fonctions async et sync
-              const result = command.action();
-              if (result instanceof Promise) {
-                result.catch(err => {
-                  console.error('Erreur commande vocale:', err);
-                  addVoiceLog('error', `Erreur: ${err.message}`);
-                });
-              }
-              break;
-            }
+          const res = command.action();
+          if (res instanceof Promise) {
+            res.catch((err) => {
+              console.error('Erreur commande vocale:', err);
+              addVoiceLog('error', `Erreur: ${err.message}`);
+            });
           }
-          if (!matched) {
-            addVoiceLog('heard', `Aucune commande trouvée`);
-          }
-        });
-
-        speechService.onError((error) => {
-          console.error('Erreur reconnaissance vocale:', error);
-          setIsListening(false);
-        });
-
-        await speechService.startListening({
-          language: 'fr-FR',
-          continuous: true,
-          interimResults: false,
-        });
-
-        setIsListening(true);
-      } catch (error) {
-        console.error('Erreur initialisation reconnaissance vocale:', error);
+          break;
+        }
+      }
+      if (!matched) {
+        // Ne log pas ici pour éviter le spam si plusieurs hooks
       }
     };
 
-    startListening();
+    subscribers.push(subscriber);
+    activeCount += 1;
+
+    // Démarrer globalement si nécessaire
+    startGlobalListening().then((ok) => setIsListening(ok));
 
     return () => {
-      speechService.stopListening();
+      subscribers = subscribers.filter((fn) => fn !== subscriber);
+      activeCount -= 1;
+      stopGlobalListeningIfIdle();
       setIsListening(false);
     };
   }, [commands, enabled]);
 
-  return { isListening, lastCommand };
+  return { isListening: isListening || isServiceListening, lastCommand };
 };

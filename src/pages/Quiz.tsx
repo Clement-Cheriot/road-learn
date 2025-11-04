@@ -298,7 +298,7 @@ const Quiz = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/')}
+              onClick={() => { audioServiceRef.stopSpeaking().catch(() => {}); navigate('/'); }}
               className="mr-2"
             >
               <Home className="h-4 w-4 mr-2" />

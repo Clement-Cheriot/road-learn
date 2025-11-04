@@ -39,19 +39,25 @@ export class WebSpeechService implements ISpeechService {
 
     this.recognition.onend = () => {
       console.log('🎤 Écoute vocale arrêtée');
-      // Redémarrage automatique pour écoute continue (éviter boucle infinie)
-      if (this.shouldAutoRestart && this.listening) {
-        setTimeout(() => {
-          if (this.shouldAutoRestart && !this.listening) {
-            try {
-              this.recognition.start();
-            } catch (e) {
-              console.warn('Redémarrage reconnaissance échoué:', e);
-            }
-          }
-        }, 500);
-      }
+      const shouldRestart = this.shouldAutoRestart;
       this.listening = false;
+      if (shouldRestart) {
+        try {
+          this.recognition.start();
+          this.listening = true;
+        } catch (e) {
+          setTimeout(() => {
+            try {
+              if (this.shouldAutoRestart && !this.listening) {
+                this.recognition.start();
+                this.listening = true;
+              }
+            } catch (err) {
+              console.warn('Redémarrage reconnaissance échoué:', err);
+            }
+          }, 400);
+        }
+      }
     };
 
     this.recognition.onresult = (event: any) => {
@@ -88,7 +94,9 @@ export class WebSpeechService implements ISpeechService {
     }
 
     if (this.listening) {
-      await this.stopListening();
+      // Déjà en écoute: ne pas redémarrer
+      this.shouldAutoRestart = true;
+      return;
     }
 
     this.lastOptions = options;
