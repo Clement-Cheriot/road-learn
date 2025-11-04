@@ -1,0 +1,230 @@
+[
+  {
+    "id": "hist_001",
+    "type": "duo",
+    "category": "histoire",
+    "difficulty": "easy",
+    "question": "En quelle année a eu lieu la Révolution française ?",
+    "options": [
+      { "id": "a", "text": "1789", "isCorrect": true },
+      { "id": "b", "text": "1792", "isCorrect": false }
+    ],
+    "explanation": "La Révolution française a débuté en 1789 avec la prise de la Bastille le 14 juillet.",
+    "points": 10,
+    "timeLimit": 15
+  },
+  {
+    "id": "hist_002",
+    "type": "carre",
+    "category": "histoire",
+    "difficulty": "medium",
+    "question": "Qui était l'empereur romain lors de l'incendie de Rome en 64 après J.-C. ?",
+    "options": [
+      { "id": "a", "text": "Auguste", "isCorrect": false },
+      { "id": "b", "text": "Néron", "isCorrect": true },
+      { "id": "c", "text": "Caligula", "isCorrect": false },
+      { "id": "d", "text": "Hadrien", "isCorrect": false }
+    ],
+    "explanation": "Néron était empereur lors du grand incendie de Rome, bien que les historiens débattent de sa responsabilité.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "hist_003",
+    "type": "duo",
+    "category": "histoire",
+    "difficulty": "easy",
+    "question": "La guerre de Cent Ans a duré plus de 100 ans",
+    "options": [
+      { "id": "a", "text": "Vrai", "isCorrect": true },
+      { "id": "b", "text": "Faux", "isCorrect": false }
+    ],
+    "explanation": "La guerre de Cent Ans a duré de 1337 à 1453, soit 116 ans.",
+    "points": 10,
+    "timeLimit": 15
+  },
+  {
+    "id": "hist_004",
+    "type": "carre",
+    "category": "histoire",
+    "difficulty": "hard",
+    "question": "Quel traité a mis fin à la Première Guerre mondiale ?",
+    "options": [
+      { "id": "a", "text": "Traité de Versailles", "isCorrect": true },
+      { "id": "b", "text": "Traité de Trianon", "isCorrect": false },
+      { "id": "c", "text": "Traité de Lausanne", "isCorrect": false },
+      { "id": "d", "text": "Traité de Sèvres", "isCorrect": false }
+    ],
+    "explanation": "Le Traité de Versailles, signé en 1919, a officiellement mis fin à la Première Guerre mondiale.",
+    "points": 30,
+    "timeLimit": 25
+  },
+  {
+    "id": "hist_005",
+    "type": "cash",
+    "category": "histoire",
+    "difficulty": "medium",
+    "question": "Combien de rois Louis la France a-t-elle eu ?",
+    "options": [
+      { "id": "a", "text": "14", "isCorrect": false },
+      { "id": "b", "text": "16", "isCorrect": false },
+      { "id": "c", "text": "18", "isCorrect": true },
+      { "id": "d", "text": "20", "isCorrect": false }
+    ],
+    "explanation": "La France a eu 18 rois portant le nom de Louis, de Louis Ier (778-840) à Louis XVIII (1814-1824).",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "geo_001",
+    "type": "duo",
+    "category": "geographie",
+    "difficulty": "easy",
+    "question": "La capitale de l'Australie est Sydney",
+    "options": [
+      { "id": "a", "text": "Vrai", "isCorrect": false },
+      { "id": "b", "text": "Faux", "isCorrect": true }
+    ],
+    "explanation": "La capitale de l'Australie est Canberra, pas Sydney qui est la ville la plus peuplée.",
+    "points": 10,
+    "timeLimit": 15
+  },
+  {
+    "id": "geo_002",
+    "type": "carre",
+    "category": "geographie",
+    "difficulty": "medium",
+    "question": "Quel est le plus long fleuve du monde ?",
+    "options": [
+      { "id": "a", "text": "Le Nil", "isCorrect": true },
+      { "id": "b", "text": "L'Amazone", "isCorrect": false },
+      { "id": "c", "text": "Le Yangtsé", "isCorrect": false },
+      { "id": "d", "text": "Le Mississippi", "isCorrect": false }
+    ],
+    "explanation": "Le Nil est généralement considéré comme le plus long fleuve du monde avec 6 650 km.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "geo_003",
+    "type": "duo",
+    "category": "geographie",
+    "difficulty": "easy",
+    "question": "Combien y a-t-il de continents sur Terre ?",
+    "options": [
+      { "id": "a", "text": "5", "isCorrect": false },
+      { "id": "b", "text": "7", "isCorrect": true }
+    ],
+    "explanation": "Il y a 7 continents : Afrique, Amérique du Nord, Amérique du Sud, Antarctique, Asie, Europe et Océanie.",
+    "points": 10,
+    "timeLimit": 15
+  },
+  {
+    "id": "geo_004",
+    "type": "carre",
+    "category": "geographie",
+    "difficulty": "hard",
+    "question": "Quel pays a le plus de fuseaux horaires ?",
+    "options": [
+      { "id": "a", "text": "Russie", "isCorrect": false },
+      { "id": "b", "text": "États-Unis", "isCorrect": false },
+      { "id": "c", "text": "France", "isCorrect": true },
+      { "id": "d", "text": "Chine", "isCorrect": false }
+    ],
+    "explanation": "La France détient le record avec 12 fuseaux horaires grâce à ses territoires d'outre-mer.",
+    "points": 30,
+    "timeLimit": 25
+  },
+  {
+    "id": "geo_005",
+    "type": "cash",
+    "category": "geographie",
+    "difficulty": "medium",
+    "question": "Quelle est la capitale du Canada ?",
+    "options": [
+      { "id": "a", "text": "Toronto", "isCorrect": false },
+      { "id": "b", "text": "Vancouver", "isCorrect": false },
+      { "id": "c", "text": "Ottawa", "isCorrect": true },
+      { "id": "d", "text": "Montréal", "isCorrect": false }
+    ],
+    "explanation": "Ottawa est la capitale fédérale du Canada depuis 1857.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "sci_001",
+    "type": "duo",
+    "category": "sciences",
+    "difficulty": "easy",
+    "question": "La lumière voyage plus vite que le son",
+    "options": [
+      { "id": "a", "text": "Vrai", "isCorrect": true },
+      { "id": "b", "text": "Faux", "isCorrect": false }
+    ],
+    "explanation": "La lumière voyage à environ 300 000 km/s, tandis que le son voyage à environ 340 m/s dans l'air.",
+    "points": 10,
+    "timeLimit": 15
+  },
+  {
+    "id": "sci_002",
+    "type": "carre",
+    "category": "sciences",
+    "difficulty": "medium",
+    "question": "Quel est le symbole chimique de l'or ?",
+    "options": [
+      { "id": "a", "text": "Go", "isCorrect": false },
+      { "id": "b", "text": "Au", "isCorrect": true },
+      { "id": "c", "text": "Ag", "isCorrect": false },
+      { "id": "d", "text": "Or", "isCorrect": false }
+    ],
+    "explanation": "Le symbole de l'or est Au, du latin 'aurum'.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "sci_003",
+    "type": "duo",
+    "category": "sciences",
+    "difficulty": "easy",
+    "question": "Combien de planètes y a-t-il dans le système solaire ?",
+    "options": [
+      { "id": "a", "text": "8", "isCorrect": true },
+      { "id": "b", "text": "9", "isCorrect": false }
+    ],
+    "explanation": "Il y a 8 planètes depuis que Pluton a été reclassée comme planète naine en 2006.",
+    "points": 10,
+    "timeLimit": 15
+  },
+  {
+    "id": "sci_004",
+    "type": "carre",
+    "category": "sciences",
+    "difficulty": "hard",
+    "question": "Quelle est la vitesse de la lumière dans le vide ?",
+    "options": [
+      { "id": "a", "text": "299 792 km/s", "isCorrect": true },
+      { "id": "b", "text": "150 000 km/s", "isCorrect": false },
+      { "id": "c", "text": "340 000 km/s", "isCorrect": false },
+      { "id": "d", "text": "500 000 km/s", "isCorrect": false }
+    ],
+    "explanation": "La vitesse de la lumière dans le vide est exactement 299 792 458 m/s.",
+    "points": 30,
+    "timeLimit": 25
+  },
+  {
+    "id": "sci_005",
+    "type": "cash",
+    "category": "sciences",
+    "difficulty": "medium",
+    "question": "Combien d'os compte le corps humain adulte ?",
+    "options": [
+      { "id": "a", "text": "186", "isCorrect": false },
+      { "id": "b", "text": "206", "isCorrect": true },
+      { "id": "c", "text": "226", "isCorrect": false },
+      { "id": "d", "text": "246", "isCorrect": false }
+    ],
+    "explanation": "Le squelette humain adulte comprend 206 os.",
+    "points": 20,
+    "timeLimit": 20
+  }
+]
