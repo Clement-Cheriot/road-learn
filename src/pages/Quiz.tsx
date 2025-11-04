@@ -41,6 +41,7 @@ const Quiz = () => {
   const [startTime, setStartTime] = useState<Date>(new Date());
   const [isReadingQuestion, setIsReadingQuestion] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
+  const audioServiceRef = useState(() => createAudioService())[0];
 
   useEffect(() => {
     if (category) {
@@ -50,9 +51,17 @@ const Quiz = () => {
 
   useEffect(() => {
     if (currentSession?.isComplete) {
+      audioServiceRef.stopSpeaking().catch(() => {});
       navigate('/results');
     }
   }, [currentSession?.isComplete]);
+
+  // Arrêter l'audio lors du démontage
+  useEffect(() => {
+    return () => {
+      audioServiceRef.stopSpeaking().catch(() => {});
+    };
+  }, []);
 
   // Démarrer le timer uniquement après la lecture de la question
   useEffect(() => {
@@ -72,9 +81,14 @@ const Quiz = () => {
   useEffect(() => {
     if (currentQuestion && audioEnabled) {
       setTimerStarted(false); // Arrêter le timer pendant la lecture
+      setIsReadingQuestion(true);
       speakQuestion();
+    } else if (currentQuestion && !audioEnabled) {
+      // Si pas d'audio, démarrer le timer immédiatement
+      setTimerStarted(true);
+      setIsReadingQuestion(false);
     }
-  }, [currentQuestion]);
+  }, [currentQuestion, audioEnabled]);
 
   // Sons du timer
   useTimerSounds(timeRemaining, timerStarted && !showFeedback);
@@ -84,12 +98,14 @@ const Quiz = () => {
     const commands: Array<{ keywords: string[]; action: () => void | Promise<void> }> = [];
 
     // Commandes globales toujours actives
-    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: () => navigate('/') });
+    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: () => {
+      audioServiceRef.stopSpeaking().catch(() => {});
+      navigate('/');
+    } });
     commands.push({
       keywords: ['stop lecture', 'arrête la lecture', 'silence'],
       action: async () => {
-        const audio = createAudioService();
-        try { await audio.stopSpeaking(); } catch {}
+        try { await audioServiceRef.stopSpeaking(); } catch {}
         // Si on arrêtait la lecture de la question, démarrer le timer
         if (isReadingQuestion && !showFeedback) {
           setIsReadingQuestion(false);
@@ -100,8 +116,7 @@ const Quiz = () => {
     commands.push({
       keywords: ['répète', 'répéter', 'redis', 'encore'],
       action: async () => {
-        const audio = createAudioService();
-        try { await audio.stopSpeaking(); } catch {}
+        try { await audioServiceRef.stopSpeaking(); } catch {}
         await speakQuestion();
       },
     });
@@ -110,13 +125,12 @@ const Quiz = () => {
     commands.push({
       keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next'],
       action: () => {
+        audioServiceRef.stopSpeaking().catch(() => {});
         if (showFeedback) return handleNextQuestion();
         if (isReadingQuestion) {
           // Arrêter la lecture et démarrer le timer
           setIsReadingQuestion(false);
           setTimerStarted(true);
-          const audio = createAudioService();
-          audio.stopSpeaking().catch(() => {});
         }
       },
     });
@@ -175,20 +189,17 @@ const Quiz = () => {
   const speakQuestion = async () => {
     if (!currentQuestion) return;
 
-    setIsReadingQuestion(true);
-    const audio = createAudioService();
-    
     try {
       // Arrêter toute lecture en cours
-      await audio.stopSpeaking();
+      await audioServiceRef.stopSpeaking();
       
-      await audio.speak(currentQuestion.question);
+      await audioServiceRef.speak(currentQuestion.question);
       
       // Lire les options après une pause
       await new Promise(resolve => setTimeout(resolve, 800));
       
       for (const option of currentQuestion.options) {
-        await audio.speak(`Option ${option.id}: ${option.text}`);
+        await audioServiceRef.speak(`Option ${option.id}: ${option.text}`);
         await new Promise(resolve => setTimeout(resolve, 600));
       }
       
@@ -222,12 +233,11 @@ const Quiz = () => {
 
     // Feedback audio
     if (audioEnabled) {
-      const audio = createAudioService();
-      await audio.speak(option.isCorrect ? 'Bravo ! Bonne réponse.' : 'Pas tout à fait.');
+      await audioServiceRef.speak(option.isCorrect ? 'Bravo ! Bonne réponse.' : 'Pas tout à fait.');
       
       if (currentQuestion.explanation) {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        await audio.speak(currentQuestion.explanation);
+        await audioServiceRef.speak(currentQuestion.explanation);
       }
     }
 
@@ -255,12 +265,12 @@ const Quiz = () => {
     submitAnswer(answer);
 
     if (audioEnabled) {
-      const audio = createAudioService();
-      await audio.speak('Temps écoulé !');
+      await audioServiceRef.speak('Temps écoulé !');
     }
   };
 
   const handleNextQuestion = () => {
+    audioServiceRef.stopSpeaking().catch(() => {});
     setSelectedOptionId(null);
     setStartTime(new Date());
     setTimerStarted(false);

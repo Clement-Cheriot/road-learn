@@ -38,22 +38,20 @@ export class WebSpeechService implements ISpeechService {
     };
 
     this.recognition.onend = () => {
-      this.listening = false;
       console.log('🎤 Écoute vocale arrêtée');
-      // Redémarrage automatique pour écoute continue
-      if (this.shouldAutoRestart) {
-        try {
-          setTimeout(() => {
+      // Redémarrage automatique pour écoute continue (éviter boucle infinie)
+      if (this.shouldAutoRestart && this.listening) {
+        setTimeout(() => {
+          if (this.shouldAutoRestart && !this.listening) {
             try {
               this.recognition.start();
             } catch (e) {
-              console.warn('Redémarrage reconnaissance échoué, nouvel essai...', e);
+              console.warn('Redémarrage reconnaissance échoué:', e);
             }
-          }, 250);
-        } catch (e) {
-          console.warn('Erreur redémarrage auto:', e);
-        }
+          }
+        }, 500);
       }
+      this.listening = false;
     };
 
     this.recognition.onresult = (event: any) => {
@@ -71,6 +69,11 @@ export class WebSpeechService implements ISpeechService {
 
     this.recognition.onerror = (event: any) => {
       console.error('Erreur reconnaissance vocale:', event.error);
+      // Ne pas propager les erreurs "aborted" (arrêts volontaires)
+      if (event.error === 'aborted') {
+        this.listening = false;
+        return;
+      }
       this.listening = false;
       
       if (this.errorCallback) {

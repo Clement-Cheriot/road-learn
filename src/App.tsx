@@ -11,6 +11,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import GlobalVoiceController from "./features/voice/GlobalVoiceController";
 import MicLevelIndicator from "./components/MicLevelIndicator";
+import VoiceDebugPanel from "./components/VoiceDebugPanel";
 import { useSettingsStore } from "./stores/useSettingsStore";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const AppInner = () => {
     <BrowserRouter>
       <GlobalVoiceController />
       {audioMode && showMic && <MicLevelIndicator />}
+      {audioMode && <VoiceDebugPanel />}
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/quiz/:category" element={<Quiz />} />

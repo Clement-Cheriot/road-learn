@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { createSpeechService } from '@/services/speech/SpeechServiceFactory';
+import { addVoiceLog } from '@/components/VoiceDebugPanel';
 
 interface VoiceCommand {
   keywords: string[];
@@ -33,18 +34,28 @@ export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = tr
           const transcript = result.transcript.toLowerCase();
           console.log('🎤 Commande vocale détectée:', transcript);
           setLastCommand(transcript);
+          addVoiceLog('heard', `"${transcript}"`);
 
           // Chercher une commande correspondante
+          let matched = false;
           for (const command of commands) {
             if (command.keywords.some(keyword => transcript.includes(keyword))) {
               console.log('✅ Commande exécutée:', command.keywords[0]);
+              addVoiceLog('action', `Exécution: ${command.keywords[0]}`);
+              matched = true;
               // Gérer les fonctions async et sync
               const result = command.action();
               if (result instanceof Promise) {
-                result.catch(err => console.error('Erreur commande vocale:', err));
+                result.catch(err => {
+                  console.error('Erreur commande vocale:', err);
+                  addVoiceLog('error', `Erreur: ${err.message}`);
+                });
               }
               break;
             }
+          }
+          if (!matched) {
+            addVoiceLog('heard', `Aucune commande trouvée`);
           }
         });
 
