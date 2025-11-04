@@ -103,9 +103,9 @@ const Quiz = () => {
       navigate('/');
     } });
     commands.push({
-      keywords: ['stop lecture', 'arrête la lecture', 'silence'],
+      keywords: ['stop lecture', 'arrête la lecture', 'silence', 'stop'],
       action: async () => {
-        try { await audioServiceRef.stopSpeaking(); } catch {}
+        await audioServiceRef.stopSpeaking().catch(() => {});
         // Si on arrêtait la lecture de la question, démarrer le timer
         if (isReadingQuestion && !showFeedback) {
           setIsReadingQuestion(false);
@@ -114,18 +114,20 @@ const Quiz = () => {
       },
     });
     commands.push({
-      keywords: ['répète', 'répéter', 'redis', 'encore'],
+      keywords: ['répète', 'répéter', 'redis', 'encore', 'répète la question'],
       action: async () => {
-        try { await audioServiceRef.stopSpeaking(); } catch {}
+        await audioServiceRef.stopSpeaking().catch(() => {});
+        setIsReadingQuestion(true);
+        setTimerStarted(false);
         await speakQuestion();
       },
     });
 
     // Suivant
     commands.push({
-      keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next'],
-      action: () => {
-        audioServiceRef.stopSpeaking().catch(() => {});
+      keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next', 'passe'],
+      action: async () => {
+        await audioServiceRef.stopSpeaking().catch(() => {});
         if (showFeedback) return handleNextQuestion();
         if (isReadingQuestion) {
           // Arrêter la lecture et démarrer le timer
@@ -138,7 +140,15 @@ const Quiz = () => {
     // Réponses lorsque la question est affichée et pas de feedback
     if (currentQuestion && !showFeedback && !isReadingQuestion) {
       currentQuestion.options.forEach((option) => {
-        commands.push({ keywords: [option.id, `option ${option.id}`, `réponse ${option.id}`], action: () => handleAnswer(option.id) });
+        const optionTextLower = option.text.toLowerCase().trim();
+        const keywords = [
+          option.id.toLowerCase(),
+          `option ${option.id.toLowerCase()}`,
+          `réponse ${option.id.toLowerCase()}`,
+          optionTextLower, // Texte complet de l'option
+          ...optionTextLower.split(' ').filter(w => w.length > 3), // Mots significatifs
+        ];
+        commands.push({ keywords, action: () => handleAnswer(option.id) });
       });
     }
 
@@ -207,8 +217,11 @@ const Quiz = () => {
       setIsReadingQuestion(false);
       setTimerStarted(true);
     } catch (error) {
-      console.error('Erreur lecture audio:', error);
-      // Démarrer le timer même en cas d'erreur
+      // Ignorer les erreurs "canceled" (interruption volontaire)
+      if (error instanceof Error && !error.message.includes('canceled')) {
+        console.error('Erreur lecture audio:', error);
+      }
+      // Démarrer le timer même en cas d'interruption
       setIsReadingQuestion(false);
       setTimerStarted(true);
     }
@@ -233,11 +246,18 @@ const Quiz = () => {
 
     // Feedback audio
     if (audioEnabled) {
-      await audioServiceRef.speak(option.isCorrect ? 'Bravo ! Bonne réponse.' : 'Pas tout à fait.');
-      
-      if (currentQuestion.explanation) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await audioServiceRef.speak(currentQuestion.explanation);
+      try {
+        await audioServiceRef.speak(option.isCorrect ? 'Bravo ! Bonne réponse.' : 'Pas tout à fait.');
+        
+        if (currentQuestion.explanation) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await audioServiceRef.speak(currentQuestion.explanation);
+        }
+      } catch (error) {
+        // Ignorer les erreurs d'interruption
+        if (error instanceof Error && !error.message.includes('canceled')) {
+          console.error('Erreur feedback audio:', error);
+        }
       }
     }
 

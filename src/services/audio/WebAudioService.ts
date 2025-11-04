@@ -44,7 +44,12 @@ export class WebAudioService implements IAudioService {
       utterance.onerror = (event) => {
         this.speaking = false;
         this.currentUtterance = null;
-        reject(new Error(`Speech synthesis error: ${event.error}`));
+        // Ignorer l'erreur "canceled" car c'est voulu (stopSpeaking)
+        if (event.error === 'canceled') {
+          resolve();
+        } else {
+          reject(new Error(`Speech synthesis error: ${event.error}`));
+        }
       };
 
       this.currentUtterance = utterance;
