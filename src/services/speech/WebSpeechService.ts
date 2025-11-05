@@ -58,14 +58,16 @@ export class WebSpeechService implements ISpeechService {
     };
 
     this.recognition.onresult = (event: any) => {
-      const last = event.results.length - 1;
-      const result = event.results[last];
-      
-      if (this.resultCallback) {
+      if (!this.resultCallback) return;
+      // Parcourir tous les résultats à partir de resultIndex pour ne rien manquer
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const res = event.results[i];
+        const transcript = (res[0]?.transcript || '').toLowerCase().trim();
+        if (!transcript) continue;
         this.resultCallback({
-          transcript: result[0].transcript.toLowerCase().trim(),
-          confidence: result[0].confidence,
-          isFinal: result.isFinal,
+          transcript,
+          confidence: res[0]?.confidence ?? 0,
+          isFinal: res.isFinal,
         });
       }
     };
@@ -100,6 +102,7 @@ export class WebSpeechService implements ISpeechService {
     this.recognition.lang = options?.language || 'fr-FR';
     this.recognition.continuous = options?.continuous ?? true;
     this.recognition.interimResults = options?.interimResults ?? false;
+    (this.recognition as any).maxAlternatives = 3;
     this.shouldAutoRestart = true;
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
