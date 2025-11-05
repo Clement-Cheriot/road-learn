@@ -43,6 +43,7 @@ const Quiz = () => {
   const [timerStarted, setTimerStarted] = useState(false);
   const audioServiceRef = useState(() => createAudioService())[0];
   const audioContextRef = useRef<AudioContext | null>(null);
+  const cancelReadingRef = useRef<boolean>(false);
 
   // Initialiser AudioContext pour les sons de feedback
   useEffect(() => {
@@ -116,6 +117,7 @@ const Quiz = () => {
     commands.push({
       keywords: ['stop lecture', 'arrête la lecture', 'silence', 'stop'],
       action: () => {
+        cancelReadingRef.current = true;
         audioServiceRef.stopSpeaking().catch(() => {});
         // Si on arrêtait la lecture de la question, démarrer le timer
         if (isReadingQuestion && !showFeedback) {
@@ -127,6 +129,7 @@ const Quiz = () => {
     commands.push({
       keywords: ['répète', 'répéter', 'redis', 'encore', 'répète la question'],
       action: async () => {
+        cancelReadingRef.current = true;
         audioServiceRef.stopSpeaking().catch(() => {});
         setIsReadingQuestion(true);
         setTimerStarted(false);
@@ -138,6 +141,7 @@ const Quiz = () => {
     commands.push({
       keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next', 'passe'],
       action: () => {
+        cancelReadingRef.current = true;
         audioServiceRef.stopSpeaking().catch(() => {});
         if (showFeedback) return handleNextQuestion();
         if (isReadingQuestion) {
@@ -184,6 +188,7 @@ const Quiz = () => {
         
         commands.push({ keywords, action: () => {
           // Interrompre l'audio avant de répondre
+          cancelReadingRef.current = true;
           audioServiceRef.stopSpeaking().catch(() => {});
           handleAnswer(option.id);
         }});
@@ -241,15 +246,32 @@ const Quiz = () => {
     if (!currentQuestion) return;
 
     try {
+      // Réinitialiser le flag d'annulation
+      cancelReadingRef.current = false;
+      
       // Arrêter toute lecture en cours
       await audioServiceRef.stopSpeaking();
       
       await audioServiceRef.speak(currentQuestion.question);
       
+      // Vérifier si annulé
+      if (cancelReadingRef.current) {
+        setIsReadingQuestion(false);
+        setTimerStarted(true);
+        return;
+      }
+      
       // Lire les options après une pause (sans "Option A:")
       await new Promise(resolve => setTimeout(resolve, 800));
       
       for (const option of currentQuestion.options) {
+        // Vérifier si annulé avant chaque option
+        if (cancelReadingRef.current) {
+          setIsReadingQuestion(false);
+          setTimerStarted(true);
+          return;
+        }
+        
         await audioServiceRef.speak(option.text);
         await new Promise(resolve => setTimeout(resolve, 600));
       }
