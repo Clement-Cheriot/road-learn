@@ -339,7 +339,14 @@ const Quiz = () => {
           await new Promise(resolve => setTimeout(resolve, 800));
           await audioServiceRef.speak(currentQuestion.explanation);
         }
+        
+        // Annoncer et passer automatiquement à la question suivante
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await audioServiceRef.speak('Question suivante');
         isReadingFeedbackRef.current = false;
+        
+        await new Promise(resolve => setTimeout(resolve, 800));
+        handleNextQuestion();
       } catch (error) {
         isReadingFeedbackRef.current = false;
         // Ignorer les erreurs d'interruption
