@@ -84,20 +84,18 @@ export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = tr
           addVoiceLog('action', `Exécution: ${command.keywords[0]}`);
           matched = true;
           setLastCommand(transcript);
-          try {
-            const res = command.action();
-            if (res instanceof Promise) {
-              res.catch((err: any) => {
-                console.error('Erreur commande vocale:', err);
-                addVoiceLog('error', `Erreur: ${err.message}`);
-              });
-            }
-          } catch (err: any) {
-            console.error('Erreur commande vocale:', err);
-            addVoiceLog('error', `Erreur: ${err.message}`);
+          const res = command.action();
+          if (res instanceof Promise) {
+            res.catch((err) => {
+              console.error('Erreur commande vocale:', err);
+              addVoiceLog('error', `Erreur: ${err.message}`);
+            });
           }
           break;
         }
+      }
+      if (!matched) {
+        // Ne log pas ici pour éviter le spam si plusieurs hooks
       }
     };
 
