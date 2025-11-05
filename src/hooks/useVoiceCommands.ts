@@ -77,19 +77,21 @@ export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = tr
     const speechService = ensureService();
 
     // Abonné local: fait correspondre et exécute
-    const subscriber = (transcript: string) => {
+    const subscriber = async (transcript: string) => {
       let matched = false;
       for (const command of commands) {
         if (command.keywords.some((keyword) => transcript.includes(keyword))) {
           addVoiceLog('action', `Exécution: ${command.keywords[0]}`);
           matched = true;
           setLastCommand(transcript);
-          const res = command.action();
-          if (res instanceof Promise) {
-            res.catch((err) => {
-              console.error('Erreur commande vocale:', err);
-              addVoiceLog('error', `Erreur: ${err.message}`);
-            });
+          try {
+            const res = command.action();
+            if (res instanceof Promise) {
+              await res;
+            }
+          } catch (err: any) {
+            console.error('Erreur commande vocale:', err);
+            addVoiceLog('error', `Erreur: ${err.message}`);
           }
           break;
         }

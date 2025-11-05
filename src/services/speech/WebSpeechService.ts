@@ -74,12 +74,13 @@ export class WebSpeechService implements ISpeechService {
     };
 
     this.recognition.onerror = (event: any) => {
-      console.error('Erreur reconnaissance vocale:', event.error);
-      // Ne pas propager les erreurs "aborted" (arrêts volontaires)
-      if (event.error === 'aborted') {
+      // Ne pas propager les erreurs "aborted" ou "no-speech" (arrêts volontaires ou silences)
+      if (event.error === 'aborted' || event.error === 'no-speech') {
         this.listening = false;
         return;
       }
+      
+      console.error('Erreur reconnaissance vocale:', event.error);
       this.listening = false;
       
       if (this.errorCallback) {
