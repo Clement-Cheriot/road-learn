@@ -22,8 +22,13 @@ const ensureService = () => {
   const speechService = createSpeechService();
   if (!serviceInitialized) {
     speechService.onResult((result) => {
-      if (!result.isFinal) return;
       const transcript = result.transcript.toLowerCase();
+      if (!result.isFinal) {
+        // Loguer les résultats intermédiaires pour le Voice Debug, sans déclencher d'action
+        addVoiceLog('heard', `(interim) "${transcript}"`);
+        return;
+      }
+      // Résultat final: log + dispatch aux abonnés (exécution des commandes)
       addVoiceLog('heard', `"${transcript}"`);
       subscribers.forEach((fn) => {
         try { fn(transcript); } catch (e) { /* noop */ }
@@ -31,6 +36,7 @@ const ensureService = () => {
     });
     speechService.onError((error) => {
       console.error('Erreur reconnaissance vocale:', error);
+      addVoiceLog('error', `Reconnaissance: ${error.message}`);
       errorSubscribers.forEach((fn) => fn(error));
       isServiceListening = false;
     });
@@ -48,7 +54,7 @@ const startGlobalListening = async () => {
       return false;
     }
     if (!speechService.isListening()) {
-      await speechService.startListening({ language: 'fr-FR', continuous: true, interimResults: false });
+      await speechService.startListening({ language: 'fr-FR', continuous: true, interimResults: true });
     }
     isServiceListening = true;
     return true;
