@@ -42,6 +42,17 @@ const Quiz = () => {
   const [isReadingQuestion, setIsReadingQuestion] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
   const audioServiceRef = useState(() => createAudioService())[0];
+  const audioContextRef = useState<AudioContext | null>(null)[0];
+
+  // Initialiser AudioContext pour les sons de feedback
+  useEffect(() => {
+    if (!audioContextRef) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        (audioContextRef as any) = new AudioContextClass();
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (category) {
@@ -137,17 +148,40 @@ const Quiz = () => {
       },
     });
 
-    // Réponses lorsque la question est affichée et pas de feedback
-    if (currentQuestion && !showFeedback && !isReadingQuestion) {
+    // Réponses disponibles même pendant la lecture de la question
+    if (currentQuestion && !showFeedback) {
       currentQuestion.options.forEach((option) => {
         const optionTextLower = option.text.toLowerCase().trim();
         const keywords = [
-          option.id.toLowerCase(),
-          `option ${option.id.toLowerCase()}`,
-          `réponse ${option.id.toLowerCase()}`,
-          optionTextLower, // Texte complet de l'option
+          optionTextLower, // Texte complet de l'option (priorité)
           ...optionTextLower.split(' ').filter(w => w.length > 3), // Mots significatifs
         ];
+        
+        // Ajouter variantes numériques pour les chiffres
+        const numberWords: Record<string, string> = {
+          'un': '1', 'une': '1',
+          'deux': '2',
+          'trois': '3',
+          'quatre': '4',
+          'cinq': '5',
+          'six': '6',
+          'sept': '7',
+          'huit': '8',
+          'neuf': '9',
+          'dix': '10'
+        };
+        
+        // Si l'option est un chiffre, ajouter sa version en lettres
+        if (numberWords[option.id.toLowerCase()]) {
+          keywords.push(option.id.toLowerCase());
+        }
+        // Si le texte contient un chiffre écrit, ajouter le chiffre
+        Object.entries(numberWords).forEach(([word, number]) => {
+          if (optionTextLower.includes(word) || option.id === number) {
+            keywords.push(word);
+          }
+        });
+        
         commands.push({ keywords, action: () => handleAnswer(option.id) });
       });
     }
@@ -159,6 +193,9 @@ const Quiz = () => {
 
   const initializeQuiz = async (cat: Category) => {
     try {
+      // Réinitialiser le quiz avant de démarrer
+      useQuizStore.getState().resetQuiz();
+      
       const storage = createStorageService();
       let allQuestions: Question[] = [];
 
@@ -205,11 +242,11 @@ const Quiz = () => {
       
       await audioServiceRef.speak(currentQuestion.question);
       
-      // Lire les options après une pause
+      // Lire les options après une pause (sans "Option A:")
       await new Promise(resolve => setTimeout(resolve, 800));
       
       for (const option of currentQuestion.options) {
-        await audioServiceRef.speak(`Option ${option.id}: ${option.text}`);
+        await audioServiceRef.speak(option.text);
         await new Promise(resolve => setTimeout(resolve, 600));
       }
       
@@ -244,13 +281,16 @@ const Quiz = () => {
 
     submitAnswer(answer);
 
+    // Son de réussite/échec
+    playFeedbackSound(option.isCorrect);
+
     // Feedback audio
     if (audioEnabled) {
       try {
-        await audioServiceRef.speak(option.isCorrect ? 'Bravo ! Bonne réponse.' : 'Pas tout à fait.');
+        await audioServiceRef.speak(option.isCorrect ? 'Bonne réponse.' : 'Mauvaise réponse.');
         
         if (currentQuestion.explanation) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 800));
           await audioServiceRef.speak(currentQuestion.explanation);
         }
       } catch (error) {
@@ -286,6 +326,37 @@ const Quiz = () => {
 
     if (audioEnabled) {
       await audioServiceRef.speak('Temps écoulé !');
+    }
+  };
+
+  const playFeedbackSound = (isCorrect: boolean) => {
+    if (!audioContextRef) return;
+
+    const audioContext = audioContextRef as AudioContext;
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    if (isCorrect) {
+      // Son de succès (mélodie montante)
+      oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // Do
+      oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1); // Mi
+      oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2); // Sol
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.4);
+    } else {
+      // Son d'échec (note descendante)
+      oscillator.frequency.setValueAtTime(392.00, audioContext.currentTime); // Sol
+      oscillator.frequency.setValueAtTime(349.23, audioContext.currentTime + 0.15); // Fa
+      oscillator.type = 'sawtooth';
+      gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
     }
   };
 
