@@ -76,7 +76,6 @@ export class WebSpeechService implements ISpeechService {
     this.recognition.onerror = (event: any) => {
       // Ne pas propager les erreurs "aborted" ou "no-speech" (arrêts volontaires ou silences)
       if (event.error === 'aborted' || event.error === 'no-speech') {
-        this.listening = false;
         return;
       }
       

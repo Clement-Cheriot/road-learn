@@ -109,14 +109,14 @@ const Quiz = () => {
     const commands: Array<{ keywords: string[]; action: () => void | Promise<void> }> = [];
 
     // Commandes globales toujours actives
-    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: async () => {
-      await audioServiceRef.stopSpeaking().catch(() => {});
+    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: () => {
+      audioServiceRef.stopSpeaking().catch(() => {});
       navigate('/');
     } });
     commands.push({
       keywords: ['stop lecture', 'arrête la lecture', 'silence', 'stop'],
-      action: async () => {
-        await audioServiceRef.stopSpeaking().catch(() => {});
+      action: () => {
+        audioServiceRef.stopSpeaking().catch(() => {});
         // Si on arrêtait la lecture de la question, démarrer le timer
         if (isReadingQuestion && !showFeedback) {
           setIsReadingQuestion(false);
@@ -127,7 +127,7 @@ const Quiz = () => {
     commands.push({
       keywords: ['répète', 'répéter', 'redis', 'encore', 'répète la question'],
       action: async () => {
-        await audioServiceRef.stopSpeaking().catch(() => {});
+        audioServiceRef.stopSpeaking().catch(() => {});
         setIsReadingQuestion(true);
         setTimerStarted(false);
         await speakQuestion();
@@ -137,8 +137,8 @@ const Quiz = () => {
     // Suivant
     commands.push({
       keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next', 'passe'],
-      action: async () => {
-        await audioServiceRef.stopSpeaking().catch(() => {});
+      action: () => {
+        audioServiceRef.stopSpeaking().catch(() => {});
         if (showFeedback) return handleNextQuestion();
         if (isReadingQuestion) {
           // Arrêter la lecture et démarrer le timer
@@ -182,9 +182,9 @@ const Quiz = () => {
           }
         });
         
-        commands.push({ keywords, action: async () => {
+        commands.push({ keywords, action: () => {
           // Interrompre l'audio avant de répondre
-          await audioServiceRef.stopSpeaking().catch(() => {});
+          audioServiceRef.stopSpeaking().catch(() => {});
           handleAnswer(option.id);
         }});
       });

@@ -77,7 +77,7 @@ export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = tr
     const speechService = ensureService();
 
     // Abonné local: fait correspondre et exécute
-    const subscriber = async (transcript: string) => {
+    const subscriber = (transcript: string) => {
       let matched = false;
       for (const command of commands) {
         if (command.keywords.some((keyword) => transcript.includes(keyword))) {
@@ -87,7 +87,10 @@ export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = tr
           try {
             const res = command.action();
             if (res instanceof Promise) {
-              await res;
+              res.catch((err: any) => {
+                console.error('Erreur commande vocale:', err);
+                addVoiceLog('error', `Erreur: ${err.message}`);
+              });
             }
           } catch (err: any) {
             console.error('Erreur commande vocale:', err);
@@ -95,9 +98,6 @@ export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = tr
           }
           break;
         }
-      }
-      if (!matched) {
-        // Ne log pas ici pour éviter le spam si plusieurs hooks
       }
     };
 
