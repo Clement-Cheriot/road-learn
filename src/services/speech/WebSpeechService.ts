@@ -18,6 +18,7 @@ export class WebSpeechService implements ISpeechService {
   private errorCallback?: (error: Error) => void;
   private shouldAutoRestart: boolean = false;
   private lastOptions: SpeechRecognitionOptions | undefined;
+  private restartTimer?: number;
 
   constructor() {
     const windowWithSpeech = window as IWindow;
@@ -39,25 +40,21 @@ export class WebSpeechService implements ISpeechService {
 
     this.recognition.onend = () => {
       console.log('🎤 Écoute vocale arrêtée');
-      const shouldRestart = this.shouldAutoRestart;
       this.listening = false;
-      if (shouldRestart) {
-        try {
-          this.recognition.start();
-          this.listening = true;
-        } catch (e) {
-          setTimeout(() => {
-            try {
-              if (this.shouldAutoRestart && !this.listening) {
-                this.recognition.start();
-                this.listening = true;
-              }
-            } catch (err) {
-              console.warn('Redémarrage reconnaissance échoué:', err);
-            }
-          }, 400);
-        }
+      if (!this.shouldAutoRestart) return;
+      if (this.restartTimer) {
+        clearTimeout(this.restartTimer);
       }
+      // Attendre un court délai pour éviter les boucles de redémarrage rapides
+      this.restartTimer = window.setTimeout(() => {
+        try {
+          if (this.shouldAutoRestart && !this.listening && document.visibilityState !== 'hidden') {
+            this.recognition.start();
+          }
+        } catch (err) {
+          console.warn('Redémarrage reconnaissance échoué:', err);
+        }
+      }, 600);
     };
 
     this.recognition.onresult = (event: any) => {
@@ -104,6 +101,10 @@ export class WebSpeechService implements ISpeechService {
     this.recognition.continuous = options?.continuous ?? true;
     this.recognition.interimResults = options?.interimResults ?? false;
     this.shouldAutoRestart = true;
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = undefined;
+    }
 
     try {
       this.recognition.start();
@@ -121,6 +122,10 @@ export class WebSpeechService implements ISpeechService {
   async stopListening(): Promise<void> {
     if (this.recognition) {
       this.shouldAutoRestart = false;
+    }
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = undefined;
     }
     if (this.recognition && this.listening) {
       this.recognition.stop();
