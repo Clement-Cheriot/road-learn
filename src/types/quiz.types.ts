@@ -10,6 +10,8 @@ export interface QuestionOption {
   id: string;
   text: string;
   isCorrect: boolean;
+  phoneticText?: string; // Texte phonétique pour TTS (ex: "A-U" pour "Au")
+  phoneticKeywords?: string[]; // Variantes pour reconnaissance vocale (ex: ["hahu", "eau air"])
 }
 
 export interface Question {

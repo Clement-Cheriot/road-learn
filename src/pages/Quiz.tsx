@@ -44,6 +44,7 @@ const Quiz = () => {
   const audioServiceRef = useState(() => createAudioService())[0];
   const audioContextRef = useRef<AudioContext | null>(null);
   const cancelReadingRef = useRef<boolean>(false);
+  const isReadingFeedbackRef = useRef<boolean>(false);
 
   // Initialiser AudioContext pour les sons de feedback
   useEffect(() => {
@@ -109,6 +110,9 @@ const Quiz = () => {
   const voiceCommands = useMemo(() => {
     const commands: Array<{ keywords: string[]; action: () => void | Promise<void> }> = [];
 
+    // Ignorer les commandes pendant la lecture du feedback
+    const shouldIgnoreCommand = () => isReadingFeedbackRef.current;
+
     // Commandes globales toujours actives
     commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: () => {
       audioServiceRef.stopSpeaking().catch(() => {});
@@ -117,7 +121,9 @@ const Quiz = () => {
     commands.push({
       keywords: ['stop lecture', 'arrête la lecture', 'silence', 'stop'],
       action: () => {
+        if (shouldIgnoreCommand()) return;
         cancelReadingRef.current = true;
+        isReadingFeedbackRef.current = false;
         audioServiceRef.stopSpeaking().catch(() => {});
         // Si on arrêtait la lecture de la question, démarrer le timer
         if (isReadingQuestion && !showFeedback) {
@@ -129,7 +135,9 @@ const Quiz = () => {
     commands.push({
       keywords: ['répète', 'répéter', 'redis', 'encore', 'répète la question'],
       action: async () => {
+        if (shouldIgnoreCommand()) return;
         cancelReadingRef.current = true;
+        isReadingFeedbackRef.current = false;
         audioServiceRef.stopSpeaking().catch(() => {});
         setIsReadingQuestion(true);
         setTimerStarted(false);
@@ -141,7 +149,9 @@ const Quiz = () => {
     commands.push({
       keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next', 'passe'],
       action: () => {
+        if (shouldIgnoreCommand()) return;
         cancelReadingRef.current = true;
+        isReadingFeedbackRef.current = false;
         audioServiceRef.stopSpeaking().catch(() => {});
         if (showFeedback) return handleNextQuestion();
         if (isReadingQuestion) {
@@ -160,6 +170,11 @@ const Quiz = () => {
           optionTextLower, // Texte complet de l'option (priorité)
           ...optionTextLower.split(' ').filter(w => w.length > 3), // Mots significatifs
         ];
+
+        // Ajouter les variantes phonétiques si disponibles
+        if (option.phoneticKeywords) {
+          keywords.push(...option.phoneticKeywords);
+        }
         
         // Ajouter variantes numériques pour les chiffres
         const numberWords: Record<string, string> = {
@@ -187,8 +202,10 @@ const Quiz = () => {
         });
         
         commands.push({ keywords, action: () => {
+          if (shouldIgnoreCommand()) return;
           // Interrompre l'audio avant de répondre
           cancelReadingRef.current = true;
+          isReadingFeedbackRef.current = false;
           audioServiceRef.stopSpeaking().catch(() => {});
           handleAnswer(option.id);
         }});
@@ -261,7 +278,7 @@ const Quiz = () => {
         return;
       }
       
-      // Lire les options après une pause (sans "Option A:")
+      // Lire les options après une pause
       await new Promise(resolve => setTimeout(resolve, 800));
       
       for (const option of currentQuestion.options) {
@@ -272,7 +289,9 @@ const Quiz = () => {
           return;
         }
         
-        await audioServiceRef.speak(option.text);
+        // Utiliser phoneticText si disponible pour épeler les symboles
+        const textToSpeak = option.phoneticText || option.text;
+        await audioServiceRef.speak(textToSpeak);
         await new Promise(resolve => setTimeout(resolve, 600));
       }
       
@@ -313,13 +332,16 @@ const Quiz = () => {
     // Feedback audio
     if (audioEnabled) {
       try {
+        isReadingFeedbackRef.current = true;
         await audioServiceRef.speak(option.isCorrect ? 'Bonne réponse.' : 'Mauvaise réponse.');
         
         if (currentQuestion.explanation) {
           await new Promise(resolve => setTimeout(resolve, 800));
           await audioServiceRef.speak(currentQuestion.explanation);
         }
+        isReadingFeedbackRef.current = false;
       } catch (error) {
+        isReadingFeedbackRef.current = false;
         // Ignorer les erreurs d'interruption
         if (error instanceof Error && !error.message.includes('canceled')) {
           console.error('Erreur feedback audio:', error);

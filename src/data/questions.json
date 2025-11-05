@@ -172,10 +172,10 @@
     "difficulty": "medium",
     "question": "Quel est le symbole chimique de l'or ?",
     "options": [
-      { "id": "a", "text": "Go", "isCorrect": false },
-      { "id": "b", "text": "Au", "isCorrect": true },
-      { "id": "c", "text": "Ag", "isCorrect": false },
-      { "id": "d", "text": "Or", "isCorrect": false }
+      { "id": "a", "text": "Go", "isCorrect": false, "phoneticText": "G-O", "phoneticKeywords": ["géo", "g o", "gé ho"] },
+      { "id": "b", "text": "Au", "isCorrect": true, "phoneticText": "A-U", "phoneticKeywords": ["hahu", "a u", "eau air"] },
+      { "id": "c", "text": "Ag", "isCorrect": false, "phoneticText": "A-G", "phoneticKeywords": ["agé", "a g", "a j"] },
+      { "id": "d", "text": "Or", "isCorrect": false, "phoneticText": "O-R", "phoneticKeywords": ["hors", "o r", "eau air"] }
     ],
     "explanation": "Le symbole de l'or est Au, du latin 'aurum'.",
     "points": 20,

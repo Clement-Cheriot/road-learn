@@ -14,6 +14,7 @@ const GlobalVoiceController = () => {
   const location = useLocation();
   const audioMode = useSettingsStore((s) => s.audioMode);
   const hasAnnouncedRef = useRef(false);
+  const audioServiceRef = useRef(createAudioService());
 
   // Annonce vocale des commandes disponibles lors de l'activation du mode audio
   useEffect(() => {
@@ -21,12 +22,18 @@ const GlobalVoiceController = () => {
       if (!audioMode || hasAnnouncedRef.current) return;
       hasAnnouncedRef.current = true;
       try {
-        const audio = createAudioService();
-        await audio.speak("Mode Audio activé. Dites: 'Commencer le quiz mixte', ou 'Histoire', 'Géographie', 'Sciences'. Dites 'retour menu' à tout moment.");
+        await audioServiceRef.current.speak("Mode Audio activé. Dites: 'Commencer le quiz mixte', ou 'Histoire', 'Géographie', 'Sciences'. Dites 'retour menu' à tout moment.");
       } catch {}
     };
     announce();
   }, [audioMode]);
+
+  // Nettoyage à la destruction
+  useEffect(() => {
+    return () => {
+      audioServiceRef.current.stopSpeaking().catch(() => {});
+    };
+  }, []);
 
   const commands = useMemo(() => {
     if (!audioMode) return [] as { keywords: string[]; action: () => void | Promise<void> }[];
@@ -45,8 +52,7 @@ const GlobalVoiceController = () => {
       {
         keywords: ['stop lecture', 'arrête la lecture', 'stop', 'silence'],
         action: async () => {
-          const audio = createAudioService();
-          try { await audio.stopSpeaking(); } catch {}
+          try { await audioServiceRef.current.stopSpeaking(); } catch {}
         },
       },
     ];
