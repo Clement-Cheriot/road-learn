@@ -107,7 +107,12 @@ export class WebSpeechService implements ISpeechService {
 
     try {
       this.recognition.start();
-    } catch (error) {
+    } catch (error: any) {
+      // Ignorer l'erreur si déjà démarré
+      if (error?.message?.includes('already started')) {
+        console.log('Reconnaissance vocale déjà active');
+        return;
+      }
       console.error('Erreur démarrage reconnaissance:', error);
       throw error;
     }

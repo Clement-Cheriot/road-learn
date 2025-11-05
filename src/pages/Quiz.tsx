@@ -2,7 +2,7 @@
  * Page Quiz - Moteur de jeu principal
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Timer, Volume2, VolumeX, Check, X, Home, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,14 +42,14 @@ const Quiz = () => {
   const [isReadingQuestion, setIsReadingQuestion] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
   const audioServiceRef = useState(() => createAudioService())[0];
-  const audioContextRef = useState<AudioContext | null>(null)[0];
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   // Initialiser AudioContext pour les sons de feedback
   useEffect(() => {
-    if (!audioContextRef) {
+    if (!audioContextRef.current) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioContextClass) {
-        (audioContextRef as any) = new AudioContextClass();
+        audioContextRef.current = new AudioContextClass();
       }
     }
   }, []);
@@ -109,8 +109,8 @@ const Quiz = () => {
     const commands: Array<{ keywords: string[]; action: () => void | Promise<void> }> = [];
 
     // Commandes globales toujours actives
-    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: () => {
-      audioServiceRef.stopSpeaking().catch(() => {});
+    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: async () => {
+      await audioServiceRef.stopSpeaking().catch(() => {});
       navigate('/');
     } });
     commands.push({
@@ -182,7 +182,11 @@ const Quiz = () => {
           }
         });
         
-        commands.push({ keywords, action: () => handleAnswer(option.id) });
+        commands.push({ keywords, action: async () => {
+          // Interrompre l'audio avant de répondre
+          await audioServiceRef.stopSpeaking().catch(() => {});
+          handleAnswer(option.id);
+        }});
       });
     }
 
@@ -330,9 +334,9 @@ const Quiz = () => {
   };
 
   const playFeedbackSound = (isCorrect: boolean) => {
-    if (!audioContextRef) return;
+    if (!audioContextRef.current) return;
 
-    const audioContext = audioContextRef as AudioContext;
+    const audioContext = audioContextRef.current;
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
 
