@@ -19,6 +19,8 @@ export class WebSpeechService implements ISpeechService {
   private shouldAutoRestart: boolean = false;
   private lastOptions: SpeechRecognitionOptions | undefined;
   private restartTimer?: number;
+  private hadAnyResultSinceStart: boolean = false;
+  private restartBackoffMs: number = 800;
 
   constructor() {
     const windowWithSpeech = window as IWindow;
@@ -35,6 +37,8 @@ export class WebSpeechService implements ISpeechService {
 
     this.recognition.onstart = () => {
       this.listening = true;
+      this.hadAnyResultSinceStart = false;
+      this.restartBackoffMs = 800;
       console.log('🎤 Écoute vocale démarrée');
     };
 
@@ -45,16 +49,24 @@ export class WebSpeechService implements ISpeechService {
       if (this.restartTimer) {
         clearTimeout(this.restartTimer);
       }
-      // Attendre un court délai pour éviter les boucles de redémarrage rapides
+
+      // Backoff progressif si on boucle sans résultat
+      if (!this.hadAnyResultSinceStart) {
+        this.restartBackoffMs = Math.min(this.restartBackoffMs * 1.6, 8000);
+      } else {
+        this.restartBackoffMs = 800;
+      }
+
       this.restartTimer = window.setTimeout(() => {
         try {
           if (this.shouldAutoRestart && !this.listening && document.visibilityState !== 'hidden') {
+            console.log(`🔁 Redémarrage reconnaissance (backoff ${this.restartBackoffMs}ms)`);
             this.recognition.start();
           }
         } catch (err) {
           console.warn('Redémarrage reconnaissance échoué:', err);
         }
-      }, 600);
+      }, this.restartBackoffMs);
     };
 
     this.recognition.onresult = (event: any) => {
@@ -64,11 +76,14 @@ export class WebSpeechService implements ISpeechService {
         const res = event.results[i];
         const transcript = (res[0]?.transcript || '').toLowerCase().trim();
         if (!transcript) continue;
+        this.hadAnyResultSinceStart = true;
         this.resultCallback({
           transcript,
           confidence: res[0]?.confidence ?? 0,
           isFinal: res.isFinal,
         });
+        // Réduire le backoff si on reçoit des résultats finaux
+        if (res.isFinal) this.restartBackoffMs = 800;
       }
     };
 
@@ -77,14 +92,30 @@ export class WebSpeechService implements ISpeechService {
       if (event.error === 'aborted' || event.error === 'no-speech') {
         return;
       }
-      
+
       console.error('Erreur reconnaissance vocale:', event.error);
       this.listening = false;
+
+      // Désactiver l'auto-restart sur erreurs fatales
+      if (['not-allowed', 'service-not-allowed', 'audio-capture'].includes(event.error)) {
+        this.shouldAutoRestart = false;
+        if (this.restartTimer) {
+          clearTimeout(this.restartTimer);
+          this.restartTimer = undefined;
+        }
+      }
       
       if (this.errorCallback) {
         this.errorCallback(new Error(`Speech recognition error: ${event.error}`));
       }
     };
+
+    // Relance automatique quand l'onglet redevient visible
+    document.addEventListener('visibilitychange', () => {
+      if (this.shouldAutoRestart && !this.listening && document.visibilityState !== 'hidden') {
+        try { this.recognition.start(); } catch {}
+      }
+    });
   }
 
   async startListening(options?: SpeechRecognitionOptions): Promise<void> {
