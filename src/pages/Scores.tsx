@@ -57,58 +57,60 @@ const Scores = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <Button
             variant="ghost"
-            className="mb-4"
+            size="sm"
+            className="mb-3"
             onClick={() => navigate('/')}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-gradient-primary p-3 shadow-primary">
-              <Trophy className="h-8 w-8 text-primary-foreground" />
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-gradient-primary p-2 shadow-primary">
+              <Trophy className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Mes Scores</h1>
-              <p className="text-muted-foreground">Historique de tes quiz</p>
+              <h1 className="text-2xl font-bold">Mes Scores</h1>
+              <p className="text-xs text-muted-foreground">Historique</p>
             </div>
           </div>
         </div>
 
         {/* Liste des résultats */}
         {results.length === 0 ? (
-          <Card className="p-12 text-center">
-            <Trophy className="mx-auto mb-4 h-16 w-16 text-muted-foreground opacity-20" />
-            <p className="text-xl font-medium text-muted-foreground">
+          <Card className="p-8 text-center">
+            <Trophy className="mx-auto mb-3 h-12 w-12 text-muted-foreground opacity-20" />
+            <p className="text-lg font-medium text-muted-foreground">
               Aucun quiz terminé
             </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Lance ton premier quiz pour voir tes résultats ici !
+            <p className="mt-2 text-xs text-muted-foreground">
+              Lance ton premier quiz !
             </p>
             <Button
               variant="default"
-              className="mt-6"
+              size="sm"
+              className="mt-4"
               onClick={() => navigate('/')}
             >
-              Commencer un quiz
+              Commencer
             </Button>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {results.map((result) => (
-              <Card key={result.sessionId} className="p-6 transition-all hover:shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="mb-2 flex items-center gap-2">
-                      <h3 className="text-lg font-semibold">
+              <Card key={result.sessionId} className="p-4 transition-all active:scale-95">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="mb-1 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold truncate">
                         {getCategoryLabel(result.category)}
                       </h3>
-                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${
                         result.accuracy >= 80
                           ? 'bg-success/10 text-success'
                           : result.accuracy >= 60
@@ -118,19 +120,19 @@ const Scores = () => {
                         {Math.round(result.accuracy)}%
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
+                        <Calendar className="h-3 w-3" />
                         {formatDate(result.completedAt)}
                       </span>
                       <span>
-                        {result.correctAnswers}/{result.totalQuestions} bonnes réponses
+                        {result.correctAnswers}/{result.totalQuestions} bonnes
                       </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="mb-1 text-sm text-muted-foreground">Score</p>
-                    <p className="text-3xl font-bold text-primary">
+                  <div className="text-right flex-shrink-0">
+                    <p className="mb-1 text-xs text-muted-foreground">Score</p>
+                    <p className="text-2xl font-bold text-primary">
                       {result.score}
                     </p>
                     <p className="text-xs text-muted-foreground">

@@ -44,32 +44,33 @@ const Settings = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
       <div className="mx-auto max-w-2xl">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <Button
             variant="ghost"
-            className="mb-4"
+            size="sm"
+            className="mb-3"
             onClick={() => navigate('/')}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
-          <h1 className="text-3xl font-bold">Paramètres</h1>
+          <h1 className="text-2xl font-bold">Paramètres</h1>
         </div>
 
         {/* Audio */}
-        <Card className="mb-6 p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <Volume2 className="h-5 w-5 text-primary" />
+        <Card className="mb-4 p-4">
+          <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
+            <Volume2 className="h-4 w-4 text-primary" />
             Audio
           </h3>
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium">Synthèse vocale</p>
-              <p className="text-sm text-muted-foreground">
-                Lire les questions et réponses
+              <p className="text-sm font-medium">Synthèse vocale</p>
+              <p className="text-xs text-muted-foreground">
+                Lire les questions
               </p>
             </div>
             <Switch
@@ -80,56 +81,43 @@ const Settings = () => {
         </Card>
 
         {/* Données */}
-        <Card className="mb-6 p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <Trash2 className="h-5 w-5 text-destructive" />
+        <Card className="mb-4 p-4">
+          <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
+            <Trash2 className="h-4 w-4 text-destructive" />
             Données
           </h3>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Efface toutes les données stockées localement (progression, scores, questions).
+          <p className="mb-3 text-xs text-muted-foreground">
+            Efface toutes les données stockées localement.
           </p>
           <Button
             variant="destructive"
+            size="sm"
             onClick={handleClearData}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Effacer toutes les données
+            <Trash2 className="mr-2 h-3 w-3" />
+            <span className="text-xs">Effacer les données</span>
           </Button>
         </Card>
 
         {/* Info technique */}
-        <Card className="p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <Info className="h-5 w-5 text-primary" />
-            Informations techniques
+        <Card className="p-4">
+          <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
+            <Info className="h-4 w-4 text-primary" />
+            Informations
           </h3>
-          <div className="space-y-2 text-sm">
+          <div className="space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Version</span>
               <span className="font-medium">1.0.0 (POC)</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Plateforme</span>
-              <span className="font-medium">Web (Native-ready)</span>
+              <span className="font-medium">Web</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Stockage</span>
               <span className="font-medium">IndexedDB</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Audio</span>
-              <span className="font-medium">Web Speech API</span>
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-lg bg-primary/5 p-4">
-            <p className="mb-2 text-xs font-semibold text-primary">
-              🚀 Migration Capacitor
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Cette version web est préparée pour une migration native iOS/Android via Capacitor.
-              L'architecture de services abstraits permet un switch transparent vers les APIs natives.
-            </p>
           </div>
         </Card>
       </div>

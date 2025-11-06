@@ -66,64 +66,64 @@ const Results = () => {
   const scorePercentage = Math.round((currentSession.score / currentSession.maxScore) * 100);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
       <div className="mx-auto max-w-2xl">
         {/* Trophy Header */}
-        <div className="mb-8 text-center">
-          <div className="mb-4 inline-block rounded-full bg-gradient-success p-6 shadow-success">
-            <Trophy className="h-16 w-16 text-success-foreground" />
+        <div className="mb-6 text-center">
+          <div className="mb-3 inline-block rounded-full bg-gradient-success p-4 shadow-success">
+            <Trophy className="h-12 w-12 text-success-foreground" />
           </div>
-          <h1 className="mb-2 text-4xl font-bold">Quiz terminé !</h1>
-          <p className="text-xl text-muted-foreground">
+          <h1 className="mb-2 text-2xl font-bold">Quiz terminé !</h1>
+          <p className="text-sm text-muted-foreground">
             Catégorie: {currentSession.category}
           </p>
         </div>
 
         {/* Score principal */}
-        <Card className="mb-6 p-8 text-center shadow-lg">
-          <div className="mb-6">
-            <p className="mb-2 text-sm text-muted-foreground">Score final</p>
-            <p className="bg-gradient-primary bg-clip-text text-6xl font-bold text-transparent">
+        <Card className="mb-4 p-6 text-center shadow-lg">
+          <div className="mb-4">
+            <p className="mb-2 text-xs text-muted-foreground">Score final</p>
+            <p className="bg-gradient-primary bg-clip-text text-5xl font-bold text-transparent">
               {currentSession.score}
             </p>
-            <p className="mt-2 text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               sur {currentSession.maxScore} points ({scorePercentage}%)
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 border-t pt-6">
+          <div className="grid grid-cols-2 gap-3 border-t pt-4">
             <div>
-              <p className="text-sm text-muted-foreground">Bonnes réponses</p>
-              <p className="text-3xl font-bold text-success">
+              <p className="text-xs text-muted-foreground">Bonnes réponses</p>
+              <p className="text-2xl font-bold text-success">
                 {correctAnswers}/{currentSession.questions.length}
               </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Précision</p>
-              <p className="text-3xl font-bold text-primary">{accuracy}%</p>
+              <p className="text-xs text-muted-foreground">Précision</p>
+              <p className="text-2xl font-bold text-primary">{accuracy}%</p>
             </div>
           </div>
         </Card>
 
         {/* Statistiques détaillées */}
-        <Card className="mb-6 p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <TrendingUp className="h-5 w-5 text-primary" />
+        <Card className="mb-4 p-4">
+          <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
+            <TrendingUp className="h-4 w-4 text-primary" />
             Statistiques
           </h3>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Temps moyen par question</span>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Temps moyen</span>
               <span className="font-medium">
                 {Math.round(answers.reduce((sum, a) => sum + a.timeSpent, 0) / answers.length / 1000)}s
               </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Questions répondues</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Questions</span>
               <span className="font-medium">{answers.length}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Taux de réussite</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Résultat</span>
               <span className={`font-medium ${accuracy >= 70 ? 'text-success' : 'text-warning'}`}>
                 {accuracy >= 80 ? '⭐ Excellent' : accuracy >= 60 ? '👍 Bien' : '📈 À améliorer'}
               </span>
@@ -132,24 +132,22 @@ const Results = () => {
         </Card>
 
         {/* Actions */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 grid-cols-2">
           <Button
             variant="default"
-            size="lg"
             className="w-full"
             onClick={handlePlayAgain}
           >
-            <RotateCcw className="mr-2 h-5 w-5" />
-            Rejouer
+            <RotateCcw className="mr-2 h-4 w-4" />
+            <span className="text-sm">Rejouer</span>
           </Button>
           <Button
             variant="outline"
-            size="lg"
             className="w-full"
             onClick={handleHome}
           >
-            <Home className="mr-2 h-5 w-5" />
-            Accueil
+            <Home className="mr-2 h-4 w-4" />
+            <span className="text-sm">Accueil</span>
           </Button>
         </div>
       </div>

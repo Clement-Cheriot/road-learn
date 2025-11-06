@@ -505,59 +505,58 @@ const Quiz = () => {
   const timePercentage = (timeRemaining / currentQuestion.timeLimit) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
       <div className="mx-auto max-w-3xl">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => { audioServiceRef.stopSpeaking().catch(() => {}); navigate('/'); }}
-              className="mr-2"
             >
-              <Home className="h-4 w-4 mr-2" />
-              Retour
+              <Home className="h-4 w-4 mr-1" />
+              <span className="text-xs">Retour</span>
             </Button>
-            <span className="text-sm text-muted-foreground">
-              Question {currentQuestionIndex + 1}/{currentSession.questions.length}
+            <span className="text-xs text-muted-foreground">
+              {currentQuestionIndex + 1}/{currentSession.questions.length}
             </span>
-            <Progress value={progressPercentage} className="w-32" />
+            <Progress value={progressPercentage} className="w-20" />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => setVoiceEnabled(!voiceEnabled)}
               className={isListening ? 'text-success' : ''}
             >
-              {voiceEnabled && isListening ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+              {voiceEnabled && isListening ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
             </Button>
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => setAudioEnabled(!audioEnabled)}
             >
-              {audioEnabled ? <Volume2 /> : <VolumeX />}
+              {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             </Button>
           </div>
         </div>
 
         {/* Timer */}
-        <Card className="mb-6 p-4">
+        <Card className="mb-4 p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Timer className={`h-5 w-5 ${timeRemaining <= 5 ? 'text-destructive animate-pulse' : 'text-primary'}`} />
-              <span className={`font-mono text-2xl font-bold ${timeRemaining <= 5 ? 'text-destructive' : ''}`}>
+              <Timer className={`h-4 w-4 ${timeRemaining <= 5 ? 'text-destructive animate-pulse' : 'text-primary'}`} />
+              <span className={`font-mono text-xl font-bold ${timeRemaining <= 5 ? 'text-destructive' : ''}`}>
                 {isReadingQuestion ? '⏸️' : `${timeRemaining}s`}
               </span>
               {isReadingQuestion && (
-                <span className="text-xs text-muted-foreground ml-2">Lecture en cours...</span>
+                <span className="text-xs text-muted-foreground">Lecture...</span>
               )}
             </div>
             <div className="text-right">
-              <p className="text-sm text-muted-foreground">Score</p>
-              <p className="text-xl font-bold text-primary">{currentSession.score}</p>
+              <p className="text-xs text-muted-foreground">Score</p>
+              <p className="text-lg font-bold text-primary">{currentSession.score}</p>
             </div>
           </div>
           <Progress 
@@ -567,22 +566,22 @@ const Quiz = () => {
         </Card>
 
         {/* Question */}
-        <Card className="mb-6 p-8 text-center shadow-lg">
-          <div className="mb-4">
-            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+        <Card className="mb-4 p-5 text-center shadow-lg">
+          <div className="mb-3">
+            <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
               {currentQuestion.type.toUpperCase()}
             </span>
-            <span className="ml-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
+            <span className="ml-2 rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
               {currentQuestion.points} pts
             </span>
           </div>
-          <h2 className="text-2xl font-bold md:text-3xl">
+          <h2 className="text-lg font-bold leading-tight md:text-2xl">
             {currentQuestion.question}
           </h2>
         </Card>
 
         {/* Options */}
-        <div className="mb-6 grid gap-4 grid-cols-2">
+        <div className="mb-4 grid gap-3 grid-cols-2">
           {currentQuestion.options.map((option) => {
             const isSelected = selectedOptionId === option.id;
             const showCorrect = showFeedback && option.isCorrect;
@@ -592,17 +591,16 @@ const Quiz = () => {
               <Button
                 key={option.id}
                 variant={showCorrect ? 'default' : showWrong ? 'destructive' : 'outline'}
-                size="lg"
-                className={`h-auto min-h-[80px] whitespace-normal p-6 text-lg transition-all ${
+                className={`h-auto min-h-[70px] whitespace-normal p-4 text-sm transition-all ${
                   showCorrect ? 'bg-gradient-success shadow-success' : ''
                 } ${showWrong ? 'opacity-50' : ''}`}
                 onClick={() => handleAnswer(option.id)}
                 disabled={showFeedback}
               >
-                <div className="flex w-full items-center justify-between gap-4">
-                  <span className="flex-1 text-left">{option.text}</span>
-                  {showCorrect && <Check className="h-6 w-6 shrink-0" />}
-                  {showWrong && <X className="h-6 w-6 shrink-0" />}
+                <div className="flex w-full items-center justify-between gap-2">
+                  <span className="flex-1 text-left leading-tight">{option.text}</span>
+                  {showCorrect && <Check className="h-5 w-5 shrink-0" />}
+                  {showWrong && <X className="h-5 w-5 shrink-0" />}
                 </div>
               </Button>
             );
@@ -611,21 +609,20 @@ const Quiz = () => {
 
         {/* Feedback */}
         {showFeedback && (
-          <Card className={`mb-6 p-6 ${lastAnswerCorrect ? 'border-success' : 'border-destructive'}`}>
-            <div className="mb-4 text-center">
-              <p className={`text-xl font-bold ${lastAnswerCorrect ? 'text-success' : 'text-destructive'}`}>
+          <Card className={`mb-4 p-4 ${lastAnswerCorrect ? 'border-success' : 'border-destructive'}`}>
+            <div className="mb-3 text-center">
+              <p className={`text-lg font-bold ${lastAnswerCorrect ? 'text-success' : 'text-destructive'}`}>
                 {lastAnswerCorrect ? '✅ Bravo !' : '❌ Pas tout à fait'}
               </p>
             </div>
             {currentQuestion.explanation && (
-              <p className="text-center text-muted-foreground">
+              <p className="text-center text-sm text-muted-foreground mb-4">
                 {currentQuestion.explanation}
               </p>
             )}
             <Button
               variant="default"
-              size="lg"
-              className="mt-6 w-full"
+              className="w-full"
               onClick={handleNextQuestion}
             >
               Question suivante

@@ -162,38 +162,38 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
-        <header className="mb-8 text-center">
-          <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="rounded-2xl bg-gradient-primary p-4 shadow-primary">
-              <Brain className="h-10 w-10 text-primary-foreground" />
+        <header className="mb-6 text-center">
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <div className="rounded-xl bg-gradient-primary p-3 shadow-primary">
+              <Brain className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="mb-2 bg-gradient-hero bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
+          <h1 className="mb-2 bg-gradient-hero bg-clip-text text-3xl font-bold text-transparent md:text-5xl">
             QuizMaster
           </h1>
-          <p className="text-muted-foreground">
-            Apprends en t'amusant, partout et sans connexion
+          <p className="text-sm text-muted-foreground">
+            Apprends en t'amusant
           </p>
         </header>
 
         {/* Profil utilisateur */}
         {progress && (
-          <Card className="mb-6 p-6 shadow-lg">
+          <Card className="mb-4 p-4 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Niveau</p>
-                <p className="text-3xl font-bold text-primary">{progress.level}</p>
+                <p className="text-xs text-muted-foreground">Niveau</p>
+                <p className="text-2xl font-bold text-primary">{progress.level}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-muted-foreground">XP</p>
-                <p className="text-2xl font-bold">{progress.xp}</p>
+                <p className="text-xs text-muted-foreground">XP</p>
+                <p className="text-xl font-bold">{progress.xp}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-muted-foreground">Précision</p>
-                <p className="text-2xl font-bold text-success">
+                <p className="text-xs text-muted-foreground">Précision</p>
+                <p className="text-xl font-bold text-success">
                   {progress.totalQuestions > 0
                     ? Math.round((progress.totalCorrectAnswers / progress.totalQuestions) * 100)
                     : 0}
@@ -205,36 +205,36 @@ const Index = () => {
         )}
 
         {/* Contrôle audio */}
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <Volume2 className={`h-5 w-5 ${audioEnabled ? 'text-success' : 'text-muted-foreground'}`} />
-          <span className="text-sm text-muted-foreground">
+        <div className="mb-4 flex items-center justify-center gap-2">
+          <Volume2 className={`h-4 w-4 ${audioEnabled ? 'text-success' : 'text-muted-foreground'}`} />
+          <span className="text-xs text-muted-foreground">
             {audioEnabled ? 'Audio activé' : 'Audio désactivé'}
           </span>
         </div>
 
         {/* Quiz Mixte */}
-        <div className="mb-8">
+        <div className="mb-6">
           <Card
-            className="group cursor-pointer overflow-hidden transition-all hover:scale-105 hover:shadow-primary bg-gradient-primary"
+            className="group cursor-pointer overflow-hidden transition-all active:scale-95 bg-gradient-primary"
             onClick={() => selectCategory('mixte')}
           >
-            <div className="p-6 text-center text-white">
-              <div className="mb-4 text-6xl">🎲</div>
-              <h3 className="mb-2 text-2xl font-bold">Quiz Mixte</h3>
-              <p className="mb-4 text-sm opacity-90">
-                Toutes les catégories mélangées pour un défi complet !
+            <div className="p-5 text-center text-white">
+              <div className="mb-3 text-5xl">🎲</div>
+              <h3 className="mb-2 text-xl font-bold">Quiz Mixte</h3>
+              <p className="mb-4 text-xs opacity-90">
+                Toutes les catégories mélangées !
               </p>
               <Button variant="secondary" className="w-full">
                 <Mic className="mr-2 h-4 w-4" />
-                Commencer le quiz mixte
+                Commencer
               </Button>
             </div>
           </Card>
         </div>
 
         {/* Catégories */}
-        <h2 className="mb-4 text-center text-xl font-bold">Ou choisis une catégorie</h2>
-        <div className="mb-8 grid gap-4 md:grid-cols-3">
+        <h2 className="mb-3 text-center text-lg font-bold">Ou choisis une catégorie</h2>
+        <div className="mb-6 grid gap-3 grid-cols-2 md:grid-cols-3">
           {([
             'arts-litterature',
             'divertissement',
@@ -248,23 +248,23 @@ const Index = () => {
           ] as const).map((category) => (
             <Card
               key={category}
-              className="group cursor-pointer overflow-hidden transition-all hover:scale-105 hover:shadow-primary"
+              className="group cursor-pointer overflow-hidden transition-all active:scale-95 hover:shadow-primary"
               onClick={() => selectCategory(category)}
             >
-              <div className="p-6 text-center">
-                <div className="mb-4 text-6xl">{getCategoryEmoji(category)}</div>
-                <h3 className="mb-2 text-xl font-bold">{getCategoryLabel(category)}</h3>
+              <div className="p-4 text-center">
+                <div className="mb-2 text-4xl">{getCategoryEmoji(category)}</div>
+                <h3 className="mb-2 text-sm font-bold leading-tight">{getCategoryLabel(category)}</h3>
                 {progress && (
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-xs text-muted-foreground mb-3">
                     <p>{progress.categoryStats[category].questionsAnswered} questions</p>
                     <p className="text-success">
-                      {Math.round(progress.categoryStats[category].accuracy)}% réussite
+                      {Math.round(progress.categoryStats[category].accuracy)}%
                     </p>
                   </div>
                 )}
-                <Button variant="default" className="mt-4 w-full">
-                  <Mic className="mr-2 h-4 w-4" />
-                  Voir les niveaux
+                <Button variant="default" size="sm" className="w-full text-xs">
+                  <Mic className="mr-1 h-3 w-3" />
+                  Niveaux
                 </Button>
               </div>
             </Card>
@@ -272,34 +272,29 @@ const Index = () => {
         </div>
 
         {/* Actions secondaires */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 grid-cols-2">
           <Button
             variant="outline"
-            size="lg"
             className="w-full"
             onClick={() => navigate('/scores')}
           >
-            <Trophy className="mr-2 h-5 w-5" />
-            Mes scores
+            <Trophy className="mr-2 h-4 w-4" />
+            <span className="text-sm">Scores</span>
           </Button>
           <Button
             variant="outline"
-            size="lg"
             className="w-full"
             onClick={() => navigate('/settings')}
           >
-            <Settings className="mr-2 h-5 w-5" />
-            Paramètres
+            <Settings className="mr-2 h-4 w-4" />
+            <span className="text-sm">Réglages</span>
           </Button>
         </div>
 
         {/* Info plateforme */}
-        <div className="mt-8 rounded-lg bg-card p-4 text-center text-sm text-muted-foreground">
+        <div className="mt-6 rounded-lg bg-card p-3 text-center text-xs text-muted-foreground">
           <p>
-            🌐 Version Web (POC) • Architecture native-ready
-          </p>
-          <p className="mt-1 text-xs">
-            Migration Capacitor préparée pour iOS/Android natif
+            🌐 Version Web (POC)
           </p>
         </div>
       </div>

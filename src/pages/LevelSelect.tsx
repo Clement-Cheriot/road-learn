@@ -112,32 +112,33 @@ const LevelSelect = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <Button
             variant="ghost"
             onClick={() => navigate('/')}
-            className="mb-4"
+            className="mb-3"
+            size="sm"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
           
           <div className="text-center">
-            <div className="mb-4 text-6xl">{getCategoryEmoji(category)}</div>
-            <h1 className="mb-2 text-4xl font-bold">
+            <div className="mb-3 text-5xl">{getCategoryEmoji(category)}</div>
+            <h1 className="mb-2 text-2xl font-bold">
               {getCategoryLabel(category)}
             </h1>
-            <p className="text-muted-foreground">
-              Choisis ton niveau de difficulté
+            <p className="text-sm text-muted-foreground">
+              Choisis ton niveau
             </p>
           </div>
         </div>
 
         {/* Niveaux */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3">
           {([1, 2, 3, 4, 5] as Level[]).map((level) => {
             const unlocked = isLevelUnlocked(level);
             const isPremium = isLevelPremium(level);
@@ -148,42 +149,42 @@ const LevelSelect = () => {
                 key={level}
                 className={`group overflow-hidden transition-all ${
                   canPlay
-                    ? 'cursor-pointer hover:scale-105 hover:shadow-primary'
+                    ? 'cursor-pointer active:scale-95 hover:shadow-primary'
                     : 'opacity-60'
                 }`}
                 onClick={() => canPlay && startLevel(level)}
               >
-                <div className="p-6">
-                  <div className="mb-4 flex items-start justify-between">
+                <div className="p-4">
+                  <div className="mb-3 flex items-start justify-between">
                     <div>
-                      <div className="mb-2 flex items-center gap-2">
-                        <h3 className="text-2xl font-bold">Niveau {level}</h3>
+                      <div className="mb-1 flex items-center gap-2">
+                        <h3 className="text-xl font-bold">Niveau {level}</h3>
                         {isPremium && (
-                          <span className="rounded-full bg-gradient-primary px-2 py-1 text-xs text-white">
+                          <span className="rounded-full bg-gradient-primary px-2 py-0.5 text-xs text-white">
                             Premium
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-medium text-primary">
+                      <p className="text-xs font-medium text-primary">
                         {getLevelDifficulty(level)}
                       </p>
                     </div>
                     
                     {!unlocked ? (
-                      <Lock className="h-6 w-6 text-muted-foreground" />
+                      <Lock className="h-5 w-5 text-muted-foreground" />
                     ) : !canPlay ? (
-                      <Lock className="h-6 w-6 text-warning" />
+                      <Lock className="h-5 w-5 text-warning" />
                     ) : (
-                      <Star className="h-6 w-6 text-success" />
+                      <Star className="h-5 w-5 text-success" />
                     )}
                   </div>
 
-                  <p className="mb-4 text-sm text-muted-foreground">
+                  <p className="mb-3 text-xs text-muted-foreground">
                     {getLevelDescription(level)}
                   </p>
 
                   {progress && category !== 'mixte' && (
-                    <div className="mb-4 rounded-lg bg-muted/50 p-3 text-sm">
+                    <div className="mb-3 rounded-lg bg-muted/50 p-2 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Progression</span>
                         <span className="font-bold text-primary">
@@ -194,27 +195,27 @@ const LevelSelect = () => {
                   )}
 
                   {canPlay ? (
-                    <Button variant="default" className="w-full">
-                      <Trophy className="mr-2 h-4 w-4" />
+                    <Button variant="default" size="sm" className="w-full">
+                      <Trophy className="mr-2 h-3 w-3" />
                       Commencer
                     </Button>
                   ) : !unlocked ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      <Lock className="mr-2 h-4 w-4" />
-                      Niveau verrouillé
+                    <Button variant="outline" size="sm" className="w-full" disabled>
+                      <Lock className="mr-2 h-3 w-3" />
+                      Verrouillé
                     </Button>
                   ) : (
                     <Button
                       variant="outline"
+                      size="sm"
                       className="w-full"
                       onClick={(e) => {
                         e.stopPropagation();
-                        // TODO: Ouvrir la page d'achat premium
                         console.log('Ouvrir achat premium');
                       }}
                     >
-                      <Lock className="mr-2 h-4 w-4" />
-                      Débloquer Premium
+                      <Lock className="mr-2 h-3 w-3" />
+                      Débloquer
                     </Button>
                   )}
                 </div>
@@ -225,17 +226,17 @@ const LevelSelect = () => {
 
         {/* Info Premium */}
         {!progress?.hasPremium && (
-          <Card className="mt-8 border-primary/20 bg-gradient-primary/10 p-6">
+          <Card className="mt-6 border-primary/20 bg-gradient-primary/10 p-4">
             <div className="text-center">
-              <Trophy className="mx-auto mb-4 h-12 w-12 text-primary" />
-              <h3 className="mb-2 text-xl font-bold">Débloquez tous les niveaux !</h3>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Accédez aux niveaux 3, 4 et 5 de toutes les catégories avec Premium
+              <Trophy className="mx-auto mb-3 h-10 w-10 text-primary" />
+              <h3 className="mb-2 text-lg font-bold">Débloquez tous les niveaux !</h3>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Niveaux 3, 4 et 5 avec Premium
               </p>
               <Button
                 variant="default"
+                size="sm"
                 onClick={() => {
-                  // TODO: Implémenter l'achat premium
                   console.log('Ouvrir achat premium');
                 }}
               >
