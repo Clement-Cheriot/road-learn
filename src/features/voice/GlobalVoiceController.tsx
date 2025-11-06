@@ -22,7 +22,7 @@ const GlobalVoiceController = () => {
       if (!audioMode || hasAnnouncedRef.current) return;
       hasAnnouncedRef.current = true;
       try {
-        await audioServiceRef.current.speak("Mode Audio activé. Dites: 'Commencer le quiz mixte', ou 'Histoire', 'Géographie', 'Sciences'. Dites 'retour menu' à tout moment.");
+        await audioServiceRef.current.speak("Mode Audio activé. Commencer le Quiz Mixte ou dites une catégorie pour commencer. Dites 'retour menu' à tout moment.");
       } catch {}
     };
     announce();
@@ -38,10 +38,10 @@ const GlobalVoiceController = () => {
   const commands = useMemo(() => {
     if (!audioMode) return [] as { keywords: string[]; action: () => void | Promise<void> }[];
 
-    const startMixte = () => navigate('/quiz/mixte');
-    const startHist = () => navigate('/quiz/histoire');
-    const startGeo = () => navigate('/quiz/geographie');
-    const startSci = () => navigate('/quiz/sciences');
+    const startMixte = () => navigate('/quiz/mixte/1');
+    const startHist = () => navigate('/level/histoire-politique');
+    const startGeo = () => navigate('/level/geographie-economie');
+    const startSci = () => navigate('/level/sciences-technologie');
 
     const cmds: Array<{ keywords: string[]; action: () => void | Promise<void> }> = [
       { keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: () => navigate('/') },
