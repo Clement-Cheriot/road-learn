@@ -39,12 +39,12 @@ const Quiz = () => {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<Date>(new Date());
+  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
   const [isReadingQuestion, setIsReadingQuestion] = useState(false);
   const [timerStarted, setTimerStarted] = useState(false);
   const audioServiceRef = useState(() => createAudioService())[0];
   const audioContextRef = useRef<AudioContext | null>(null);
   const cancelReadingRef = useRef<boolean>(false);
-  const isReadingFeedbackRef = useRef<boolean>(false);
 
   // Initialiser AudioContext pour les sons de feedback
   useEffect(() => {
@@ -69,10 +69,11 @@ const Quiz = () => {
     }
   }, [currentSession?.isComplete]);
 
-  // Arrêter l'audio lors du démontage
+  // Arrêter l'audio lors du démontage et retour au menu
   useEffect(() => {
     return () => {
       audioServiceRef.stopSpeaking().catch(() => {});
+      cancelReadingRef.current = false;
     };
   }, []);
 
@@ -95,11 +96,13 @@ const Quiz = () => {
     if (currentQuestion && audioEnabled) {
       setTimerStarted(false); // Arrêter le timer pendant la lecture
       setIsReadingQuestion(true);
+      setQuestionStartTime(Date.now()); // Timestamp pour le scoring
       speakQuestion();
     } else if (currentQuestion && !audioEnabled) {
       // Si pas d'audio, démarrer le timer immédiatement
       setTimerStarted(true);
       setIsReadingQuestion(false);
+      setQuestionStartTime(Date.now()); // Timestamp pour le scoring
     }
   }, [currentQuestion, audioEnabled]);
 
@@ -110,21 +113,17 @@ const Quiz = () => {
   const voiceCommands = useMemo(() => {
     const commands: Array<{ keywords: string[]; action: () => void | Promise<void> }> = [];
 
-    // Ignorer les commandes pendant la lecture du feedback
-    const shouldIgnoreCommand = () => isReadingFeedbackRef.current;
-
     // Commandes globales toujours actives
-    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: () => {
-      audioServiceRef.stopSpeaking().catch(() => {});
+    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: async () => {
+      cancelReadingRef.current = true;
+      await audioServiceRef.stopSpeaking();
       navigate('/');
     } });
     commands.push({
       keywords: ['stop lecture', 'arrête la lecture', 'silence', 'stop'],
-      action: () => {
-        if (shouldIgnoreCommand()) return;
+      action: async () => {
         cancelReadingRef.current = true;
-        isReadingFeedbackRef.current = false;
-        audioServiceRef.stopSpeaking().catch(() => {});
+        await audioServiceRef.stopSpeaking();
         // Si on arrêtait la lecture de la question, démarrer le timer
         if (isReadingQuestion && !showFeedback) {
           setIsReadingQuestion(false);
@@ -135,24 +134,21 @@ const Quiz = () => {
     commands.push({
       keywords: ['répète', 'répéter', 'redis', 'encore', 'répète la question'],
       action: async () => {
-        if (shouldIgnoreCommand()) return;
         cancelReadingRef.current = true;
-        isReadingFeedbackRef.current = false;
-        audioServiceRef.stopSpeaking().catch(() => {});
+        await audioServiceRef.stopSpeaking();
         setIsReadingQuestion(true);
         setTimerStarted(false);
+        setQuestionStartTime(Date.now()); // Reset timestamp pour le scoring
         await speakQuestion();
       },
     });
 
-    // Suivant
+    // Suivant - toujours prioritaire, même pendant le feedback
     commands.push({
       keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next', 'passe'],
-      action: () => {
-        if (shouldIgnoreCommand()) return;
+      action: async () => {
         cancelReadingRef.current = true;
-        isReadingFeedbackRef.current = false;
-        audioServiceRef.stopSpeaking().catch(() => {});
+        await audioServiceRef.stopSpeaking();
         if (showFeedback) return handleNextQuestion();
         if (isReadingQuestion) {
           // Arrêter la lecture et démarrer le timer
@@ -201,12 +197,10 @@ const Quiz = () => {
           }
         });
         
-        commands.push({ keywords, action: () => {
-          if (shouldIgnoreCommand()) return;
+        commands.push({ keywords, action: async () => {
           // Interrompre l'audio avant de répondre
           cancelReadingRef.current = true;
-          isReadingFeedbackRef.current = false;
-          audioServiceRef.stopSpeaking().catch(() => {});
+          await audioServiceRef.stopSpeaking();
           handleAnswer(option.id);
         }});
       });
@@ -235,6 +229,9 @@ const Quiz = () => {
       } else {
         allQuestions = await storage.getQuestionsByCategory(cat);
       }
+      
+      // Filtrer temporairement les questions avec symboles chimiques (sci_002)
+      allQuestions = allQuestions.filter(q => q.id !== 'sci_002');
       
       // Sélectionner 5 questions aléatoires
       const selectedQuestions = allQuestions
@@ -309,6 +306,12 @@ const Quiz = () => {
     }
   };
 
+  const calculateScore = (timeElapsed: number, basePoints: number, timeLimit: number): number => {
+    const multiplier = timeElapsed <= 5000 ? 3 : 
+                      timeElapsed <= (timeLimit - 5) * 1000 ? 2 : 1;
+    return basePoints * multiplier;
+  };
+
   const handleAnswer = async (optionId: string) => {
     if (!currentQuestion || showFeedback) return;
 
@@ -316,11 +319,15 @@ const Quiz = () => {
     const option = currentQuestion.options.find(o => o.id === optionId);
     if (!option) return;
 
+    const timeElapsed = Date.now() - questionStartTime;
+    const basePoints = currentQuestion.points;
+    const earnedPoints = option.isCorrect ? calculateScore(timeElapsed, basePoints, currentQuestion.timeLimit) : 0;
+
     const answer: UserAnswer = {
       questionId: currentQuestion.id,
       selectedOptionId: optionId,
       isCorrect: option.isCorrect,
-      timeSpent: Date.now() - startTime.getTime(),
+      timeSpent: timeElapsed,
       answeredAt: new Date(),
     };
 
@@ -329,26 +336,35 @@ const Quiz = () => {
     // Son de réussite/échec
     playFeedbackSound(option.isCorrect);
 
+    // Mettre à jour le score avec le multiplicateur
+    if (option.isCorrect) {
+      useQuizStore.setState(state => ({
+        currentSession: state.currentSession ? {
+          ...state.currentSession,
+          score: state.currentSession.score + earnedPoints
+        } : null
+      }));
+    }
+
     // Feedback audio
     if (audioEnabled) {
       try {
-        isReadingFeedbackRef.current = true;
         await audioServiceRef.speak(option.isCorrect ? 'Bonne réponse.' : 'Mauvaise réponse.');
         
+        // Pause après "bonne/mauvaise réponse" avant l'explication
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
         if (currentQuestion.explanation) {
-          await new Promise(resolve => setTimeout(resolve, 800));
           await audioServiceRef.speak(currentQuestion.explanation);
         }
         
         // Annoncer et passer automatiquement à la question suivante
         await new Promise(resolve => setTimeout(resolve, 1000));
         await audioServiceRef.speak('Question suivante');
-        isReadingFeedbackRef.current = false;
         
         await new Promise(resolve => setTimeout(resolve, 800));
         handleNextQuestion();
       } catch (error) {
-        isReadingFeedbackRef.current = false;
         // Ignorer les erreurs d'interruption
         if (error instanceof Error && !error.message.includes('canceled')) {
           console.error('Erreur feedback audio:', error);
@@ -361,7 +377,7 @@ const Quiz = () => {
       const questionCategory = currentQuestion.category as Category;
       updateCategoryStats(questionCategory, option.isCorrect);
       if (option.isCorrect) {
-        updateXP(currentQuestion.points);
+        updateXP(earnedPoints);
       }
     }
   };
@@ -380,7 +396,35 @@ const Quiz = () => {
     submitAnswer(answer);
 
     if (audioEnabled) {
-      await audioServiceRef.speak('Temps écoulé !');
+      try {
+        await audioServiceRef.speak('Temps écoulé');
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Trouver et annoncer la bonne réponse
+        const correctOption = currentQuestion.options.find(opt => opt.isCorrect);
+        if (correctOption) {
+          await audioServiceRef.speak(`La bonne réponse était ${correctOption.phoneticText || correctOption.text}`);
+        }
+        
+        // Lire l'explication
+        if (currentQuestion.explanation) {
+          await new Promise(resolve => setTimeout(resolve, 800));
+          await audioServiceRef.speak(currentQuestion.explanation);
+        }
+        
+        // Annoncer et passer automatiquement à la question suivante
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await audioServiceRef.speak('Question suivante');
+        
+        await new Promise(resolve => setTimeout(resolve, 800));
+        handleNextQuestion();
+      } catch (error) {
+        console.error('Erreur lors de la lecture du timeout:', error);
+        handleNextQuestion();
+      }
+    } else {
+      // Si pas d'audio, passer quand même à la question suivante
+      setTimeout(() => handleNextQuestion(), 2000);
     }
   };
 
@@ -415,10 +459,14 @@ const Quiz = () => {
     }
   };
 
-  const handleNextQuestion = () => {
-    audioServiceRef.stopSpeaking().catch(() => {});
+  const handleNextQuestion = async () => {
+    // Nettoyer le cache audio et les refs
+    cancelReadingRef.current = false;
+    await audioServiceRef.stopSpeaking();
+    
     setSelectedOptionId(null);
     setStartTime(new Date());
+    setQuestionStartTime(Date.now());
     setTimerStarted(false);
     setIsReadingQuestion(false);
     nextQuestion();
