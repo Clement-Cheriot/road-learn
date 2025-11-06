@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { isMicrophoneGranted } from '@/services/audio/MicrophonePermission';
 
 /**
  * Indicateur visuel de niveau micro (en haut à droite)
@@ -21,7 +22,22 @@ const MicLevelIndicator = () => {
 
     const setup = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        // Attendre que la permission soit déjà accordée par useVoiceCommands
+        // pour éviter les conflits de demande simultanée
+        if (!isMicrophoneGranted()) {
+          console.log('⏳ MicLevelIndicator: attente permission microphone...');
+          // Réessayer après un court délai
+          setTimeout(setup, 500);
+          return;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            echoCancellation: true, 
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
+        });
         streamRef.current = stream;
         setGranted(true);
 

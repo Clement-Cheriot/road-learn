@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useVoiceCommands } from '@/hooks/useVoiceCommands';
 import { createAudioService } from '@/services/audio/AudioServiceFactory';
+import { requestMicrophonePermission } from '@/services/audio/MicrophonePermission';
 
 /**
  * Contrôleur vocal global
@@ -16,11 +17,19 @@ const GlobalVoiceController = () => {
   const hasAnnouncedRef = useRef(false);
   const audioServiceRef = useRef(createAudioService());
 
-  // Annonce vocale des commandes disponibles lors de l'activation du mode audio
+  // Demande de permission microphone et annonce vocale
   useEffect(() => {
     const announce = async () => {
       if (!audioMode || hasAnnouncedRef.current) return;
       hasAnnouncedRef.current = true;
+      
+      // Demander la permission microphone avant tout
+      const micGranted = await requestMicrophonePermission();
+      if (!micGranted) {
+        console.error('❌ Permission microphone refusée - mode audio désactivé');
+        return;
+      }
+
       try {
         await audioServiceRef.current.speak("Mode Audio activé. Commencer le Quiz Mixte ou dites une catégorie pour commencer. Dites 'retour menu' à tout moment.");
       } catch {}

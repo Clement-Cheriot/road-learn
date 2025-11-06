@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { createSpeechService, resetSpeechService } from '@/services/speech/SpeechServiceFactory';
 import { addVoiceLog } from '@/components/VoiceDebugPanel';
+import { requestMicrophonePermission } from '@/services/audio/MicrophonePermission';
 
 interface VoiceCommand {
   keywords: string[];
@@ -48,18 +49,32 @@ const ensureService = () => {
 const startGlobalListening = async () => {
   const speechService = ensureService();
   try {
+    // 1. Vérifier la disponibilité
     const available = await speechService.isAvailable();
     if (!available) {
       console.warn('Reconnaissance vocale non disponible');
+      addVoiceLog('error', 'Reconnaissance vocale non disponible sur ce navigateur');
       return false;
     }
+
+    // 2. Demander la permission microphone d'abord
+    const micGranted = await requestMicrophonePermission();
+    if (!micGranted) {
+      console.error('❌ Permission microphone refusée');
+      addVoiceLog('error', 'Permission microphone refusée. Autorisez le micro dans les paramètres du navigateur.');
+      return false;
+    }
+
+    // 3. Démarrer l'écoute
     if (!speechService.isListening()) {
       await speechService.startListening({ language: 'fr-FR', continuous: true, interimResults: true });
     }
     isServiceListening = true;
+    addVoiceLog('action', 'Écoute vocale activée');
     return true;
-  } catch (e) {
+  } catch (e: any) {
     console.error('Erreur initialisation reconnaissance vocale:', e);
+    addVoiceLog('error', `Échec: ${e.message || 'Erreur inconnue'}`);
     isServiceListening = false;
     return false;
   }
