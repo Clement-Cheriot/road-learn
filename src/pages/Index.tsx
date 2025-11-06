@@ -40,8 +40,11 @@ const Index = () => {
       let userProgress = await storage.getUserProgress();
       if (!userProgress) {
         userProgress = createDefaultProgress();
-        await storage.saveUserProgress(userProgress);
+      } else {
+        // Migrer les anciennes données pour inclure les nouvelles catégories
+        userProgress = migrateProgress(userProgress);
       }
+      await storage.saveUserProgress(userProgress);
       setProgress(userProgress);
 
       // Vérifier disponibilité audio
@@ -89,6 +92,23 @@ const Index = () => {
     },
     hasPremium: true, // Pour les tests, tout est débloqué
   });
+
+  const migrateProgress = (oldProgress: UserProgress): UserProgress => {
+    const defaultProgress = createDefaultProgress();
+    
+    return {
+      ...oldProgress,
+      categoryStats: {
+        ...defaultProgress.categoryStats,
+        ...oldProgress.categoryStats,
+      },
+      unlockedLevels: {
+        ...defaultProgress.unlockedLevels,
+        ...(oldProgress.unlockedLevels || {}),
+      },
+      hasPremium: oldProgress.hasPremium ?? true, // Pour les tests
+    };
+  };
 
   const selectCategory = async (category: Category) => {
     if (category === 'mixte') {
