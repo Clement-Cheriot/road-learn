@@ -2,9 +2,21 @@
  * Types TypeScript pour le système de quiz
  */
 
-export type QuestionType = 'duo' | 'carre' | 'cash';
+export type QuestionType = 'carre' | 'cash';
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Category = 'histoire' | 'geographie' | 'sciences' | 'mixte';
+export type Category = 
+  | 'arts-litterature'
+  | 'divertissement'
+  | 'sport'
+  | 'histoire-politique'
+  | 'geographie-economie'
+  | 'gastronomie'
+  | 'sciences-technologie'
+  | 'sociales'
+  | 'people'
+  | 'mixte';
+
+export type Level = 1 | 2 | 3 | 4 | 5;
 
 export interface QuestionOption {
   id: string;
@@ -29,6 +41,7 @@ export interface Question {
 export interface QuizSession {
   id: string;
   category: Category;
+  level: Level;
   startedAt: Date;
   questions: Question[];
   currentQuestionIndex: number;
@@ -67,6 +80,8 @@ export interface UserProgress {
   streak: number;
   lastPlayedAt: Date;
   categoryStats: Record<Exclude<Category, 'mixte'>, CategoryStats>;
+  unlockedLevels: Record<Exclude<Category, 'mixte'>, Level[]>;
+  hasPremium: boolean;
 }
 
 export interface CategoryStats {

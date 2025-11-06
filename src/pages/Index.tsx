@@ -66,36 +66,74 @@ const Index = () => {
     streak: 0,
     lastPlayedAt: new Date(),
     categoryStats: {
-      histoire: { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      geographie: { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      sciences: { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'arts-litterature': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'divertissement': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'sport': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'histoire-politique': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'geographie-economie': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'gastronomie': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'sciences-technologie': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'sociales': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'people': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
     },
+    unlockedLevels: {
+      'arts-litterature': [1, 2, 3, 4, 5],
+      'divertissement': [1, 2, 3, 4, 5],
+      'sport': [1, 2, 3, 4, 5],
+      'histoire-politique': [1, 2, 3, 4, 5],
+      'geographie-economie': [1, 2, 3, 4, 5],
+      'gastronomie': [1, 2, 3, 4, 5],
+      'sciences-technologie': [1, 2, 3, 4, 5],
+      'sociales': [1, 2, 3, 4, 5],
+      'people': [1, 2, 3, 4, 5],
+    },
+    hasPremium: true, // Pour les tests, tout est débloqué
   });
 
-  const startQuiz = async (category: Category) => {
-    if (audioEnabled) {
-      const audio = createAudioService();
-      await audio.speak(`Démarrage du quiz ${getCategoryLabel(category)}`);
+  const selectCategory = async (category: Category) => {
+    if (category === 'mixte') {
+      if (audioEnabled) {
+        const audio = createAudioService();
+        await audio.speak('Démarrage du quiz mixte');
+      }
+      navigate(`/quiz/${category}/1`);
+    } else {
+      if (audioEnabled) {
+        const audio = createAudioService();
+        await audio.speak(`Sélection ${getCategoryLabel(category)}`);
+      }
+      navigate(`/level/${category}`);
     }
-    navigate(`/quiz/${category}`);
   };
 
   const getCategoryLabel = (category: Category): string => {
-    const labels = {
-      histoire: 'Histoire',
-      geographie: 'Géographie',
-      sciences: 'Sciences',
-      mixte: 'Mixte',
+    const labels: Record<Category, string> = {
+      'arts-litterature': 'Arts & Littérature',
+      'divertissement': 'Divertissement',
+      'sport': 'Sport',
+      'histoire-politique': 'Histoire & Politique',
+      'geographie-economie': 'Géographie & Économie',
+      'gastronomie': 'Gastronomie',
+      'sciences-technologie': 'Sciences & Technologie',
+      'sociales': 'Sociales',
+      'people': 'People',
+      'mixte': 'Quiz Mixte',
     };
     return labels[category];
   };
 
   const getCategoryEmoji = (category: Category): string => {
-    const emojis = {
-      histoire: '🏛️',
-      geographie: '🌍',
-      sciences: '🔬',
-      mixte: '🎲',
+    const emojis: Record<Category, string> = {
+      'arts-litterature': '🎨',
+      'divertissement': '🎬',
+      'sport': '⚽',
+      'histoire-politique': '🏛️',
+      'geographie-economie': '🌍',
+      'gastronomie': '🍽️',
+      'sciences-technologie': '🔬',
+      'sociales': '👥',
+      'people': '⭐',
+      'mixte': '🎲',
     };
     return emojis[category];
   };
@@ -166,7 +204,7 @@ const Index = () => {
         <div className="mb-8">
           <Card
             className="group cursor-pointer overflow-hidden transition-all hover:scale-105 hover:shadow-primary bg-gradient-primary"
-            onClick={() => startQuiz('mixte')}
+            onClick={() => selectCategory('mixte')}
           >
             <div className="p-6 text-center text-white">
               <div className="mb-4 text-6xl">🎲</div>
@@ -185,11 +223,21 @@ const Index = () => {
         {/* Catégories */}
         <h2 className="mb-4 text-center text-xl font-bold">Ou choisis une catégorie</h2>
         <div className="mb-8 grid gap-4 md:grid-cols-3">
-          {(['histoire', 'geographie', 'sciences'] as const).map((category) => (
+          {([
+            'arts-litterature',
+            'divertissement',
+            'sport',
+            'histoire-politique',
+            'geographie-economie',
+            'gastronomie',
+            'sciences-technologie',
+            'sociales',
+            'people',
+          ] as const).map((category) => (
             <Card
               key={category}
               className="group cursor-pointer overflow-hidden transition-all hover:scale-105 hover:shadow-primary"
-              onClick={() => startQuiz(category)}
+              onClick={() => selectCategory(category)}
             >
               <div className="p-6 text-center">
                 <div className="mb-4 text-6xl">{getCategoryEmoji(category)}</div>
@@ -204,7 +252,7 @@ const Index = () => {
                 )}
                 <Button variant="default" className="mt-4 w-full">
                   <Mic className="mr-2 h-4 w-4" />
-                  Commencer
+                  Voir les niveaux
                 </Button>
               </div>
             </Card>

@@ -14,10 +14,11 @@ import { createStorageService } from '@/services/storage/StorageServiceFactory';
 import { createAudioService } from '@/services/audio/AudioServiceFactory';
 import { useVoiceCommands } from '@/hooks/useVoiceCommands';
 import { useTimerSounds } from '@/hooks/useTimerSounds';
-import type { Category, Question, QuizSession, UserAnswer } from '@/types/quiz.types';
+import type { Category, Question, QuizSession, UserAnswer, Level } from '@/types/quiz.types';
 
 const Quiz = () => {
-  const { category } = useParams<{ category: Category }>();
+  const { category, level } = useParams<{ category: Category; level: string }>();
+  const quizLevel = (level ? parseInt(level) : 1) as Level;
   const navigate = useNavigate();
   
   const {
@@ -221,7 +222,17 @@ const Quiz = () => {
 
       // Si catégorie "mixte", charger toutes les questions
       if (cat === 'mixte') {
-        const categories: Category[] = ['histoire', 'geographie', 'sciences'];
+        const categories: Exclude<Category, 'mixte'>[] = [
+          'arts-litterature',
+          'divertissement',
+          'sport',
+          'histoire-politique',
+          'geographie-economie',
+          'gastronomie',
+          'sciences-technologie',
+          'sociales',
+          'people',
+        ];
         for (const category of categories) {
           const questions = await storage.getQuestionsByCategory(category);
           allQuestions = [...allQuestions, ...questions];
@@ -241,6 +252,7 @@ const Quiz = () => {
       const session: QuizSession = {
         id: `session_${Date.now()}`,
         category: cat,
+        level: quizLevel,
         startedAt: new Date(),
         questions: selectedQuestions,
         currentQuestionIndex: 0,
@@ -375,7 +387,7 @@ const Quiz = () => {
     // Mettre à jour les stats utilisateur
     if (currentQuestion && progress) {
       const questionCategory = currentQuestion.category as Category;
-      updateCategoryStats(questionCategory, option.isCorrect);
+      updateCategoryStats(questionCategory, option.isCorrect, quizLevel);
       if (option.isCorrect) {
         updateXP(earnedPoints);
       }
@@ -561,7 +573,7 @@ const Quiz = () => {
         </Card>
 
         {/* Options */}
-        <div className={`mb-6 grid gap-4 ${currentQuestion.type === 'duo' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        <div className="mb-6 grid gap-4 grid-cols-2">
           {currentQuestion.options.map((option) => {
             const isSelected = selectedOptionId === option.id;
             const showCorrect = showFeedback && option.isCorrect;

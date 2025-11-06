@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { UserProgress, Category } from '@/types/quiz.types';
+import type { UserProgress, Category, Level } from '@/types/quiz.types';
 
 interface UserStore {
   progress: UserProgress | null;
@@ -12,7 +12,9 @@ interface UserStore {
   setProgress: (progress: UserProgress) => void;
   updateXP: (xp: number) => void;
   updateStreak: (days: number) => void;
-  updateCategoryStats: (category: Category, correct: boolean) => void;
+  updateCategoryStats: (category: Category, correct: boolean, level: Level) => void;
+  unlockLevel: (category: Exclude<Category, 'mixte'>, level: Level) => void;
+  setPremium: (hasPremium: boolean) => void;
   setLoading: (loading: boolean) => void;
   reset: () => void;
 }
@@ -53,7 +55,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
     });
   },
 
-  updateCategoryStats: (category, correct) => {
+  updateCategoryStats: (category, correct, level) => {
     const { progress } = get();
     if (!progress) return;
 
@@ -96,6 +98,36 @@ export const useUserStore = create<UserStore>((set, get) => ({
           },
         },
         lastPlayedAt: new Date(),
+      },
+    });
+  },
+
+  unlockLevel: (category, level) => {
+    const { progress } = get();
+    if (!progress) return;
+
+    const currentUnlocked = progress.unlockedLevels[category];
+    if (!currentUnlocked.includes(level)) {
+      set({
+        progress: {
+          ...progress,
+          unlockedLevels: {
+            ...progress.unlockedLevels,
+            [category]: [...currentUnlocked, level].sort(),
+          },
+        },
+      });
+    }
+  },
+
+  setPremium: (hasPremium) => {
+    const { progress } = get();
+    if (!progress) return;
+
+    set({
+      progress: {
+        ...progress,
+        hasPremium,
       },
     });
   },

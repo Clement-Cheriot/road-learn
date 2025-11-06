@@ -1,22 +1,120 @@
 [
   {
+    "id": "arts_001",
+    "type": "carre",
+    "category": "arts-litterature",
+    "difficulty": "easy",
+    "question": "Qui a peint La Joconde ?",
+    "options": [
+      { "id": "a", "text": "Michel-Ange", "isCorrect": false },
+      { "id": "b", "text": "Léonard de Vinci", "isCorrect": true },
+      { "id": "c", "text": "Raphaël", "isCorrect": false },
+      { "id": "d", "text": "Picasso", "isCorrect": false }
+    ],
+    "explanation": "La Joconde a été peinte par Léonard de Vinci entre 1503 et 1519.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "arts_002",
+    "type": "carre",
+    "category": "arts-litterature",
+    "difficulty": "medium",
+    "question": "Qui a écrit Les Misérables ?",
+    "options": [
+      { "id": "a", "text": "Émile Zola", "isCorrect": false },
+      { "id": "b", "text": "Victor Hugo", "isCorrect": true },
+      { "id": "c", "text": "Gustave Flaubert", "isCorrect": false },
+      { "id": "d", "text": "Alexandre Dumas", "isCorrect": false }
+    ],
+    "explanation": "Les Misérables ont été écrits par Victor Hugo et publiés en 1862.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "diver_001",
+    "type": "carre",
+    "category": "divertissement",
+    "difficulty": "easy",
+    "question": "Quel acteur joue Iron Man dans les films Marvel ?",
+    "options": [
+      { "id": "a", "text": "Chris Evans", "isCorrect": false },
+      { "id": "b", "text": "Robert Downey Jr", "isCorrect": true },
+      { "id": "c", "text": "Chris Hemsworth", "isCorrect": false },
+      { "id": "d", "text": "Mark Ruffalo", "isCorrect": false }
+    ],
+    "explanation": "Robert Downey Jr a incarné Tony Stark, alias Iron Man, dans l'univers cinématographique Marvel.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "diver_002",
+    "type": "carre",
+    "category": "divertissement",
+    "difficulty": "medium",
+    "question": "Quel film a remporté l'Oscar du meilleur film en 2020 ?",
+    "options": [
+      { "id": "a", "text": "1917", "isCorrect": false },
+      { "id": "b", "text": "Parasite", "isCorrect": true },
+      { "id": "c", "text": "Joker", "isCorrect": false },
+      { "id": "d", "text": "Once Upon a Time in Hollywood", "isCorrect": false }
+    ],
+    "explanation": "Parasite de Bong Joon-ho a remporté l'Oscar du meilleur film en 2020.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "sport_001",
+    "type": "carre",
+    "category": "sport",
+    "difficulty": "easy",
+    "question": "Combien de joueurs composent une équipe de football sur le terrain ?",
+    "options": [
+      { "id": "a", "text": "9", "isCorrect": false },
+      { "id": "b", "text": "11", "isCorrect": true },
+      { "id": "c", "text": "13", "isCorrect": false },
+      { "id": "d", "text": "15", "isCorrect": false }
+    ],
+    "explanation": "Une équipe de football compte 11 joueurs sur le terrain, dont un gardien de but.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "sport_002",
+    "type": "carre",
+    "category": "sport",
+    "difficulty": "medium",
+    "question": "Quel pays a remporté la Coupe du Monde de football 2018 ?",
+    "options": [
+      { "id": "a", "text": "Brésil", "isCorrect": false },
+      { "id": "b", "text": "France", "isCorrect": true },
+      { "id": "c", "text": "Croatie", "isCorrect": false },
+      { "id": "d", "text": "Argentine", "isCorrect": false }
+    ],
+    "explanation": "La France a remporté la Coupe du Monde de football 2018 en Russie.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
     "id": "hist_001",
-    "type": "duo",
-    "category": "histoire",
+    "type": "carre",
+    "category": "histoire-politique",
     "difficulty": "easy",
     "question": "En quelle année a eu lieu la Révolution française ?",
     "options": [
       { "id": "a", "text": "1789", "isCorrect": true },
-      { "id": "b", "text": "1792", "isCorrect": false }
+      { "id": "b", "text": "1792", "isCorrect": false },
+      { "id": "c", "text": "1799", "isCorrect": false },
+      { "id": "d", "text": "1804", "isCorrect": false }
     ],
     "explanation": "La Révolution française a débuté en 1789 avec la prise de la Bastille le 14 juillet.",
-    "points": 10,
-    "timeLimit": 15
+    "points": 20,
+    "timeLimit": 20
   },
   {
     "id": "hist_002",
     "type": "carre",
-    "category": "histoire",
+    "category": "histoire-politique",
     "difficulty": "medium",
     "question": "Qui était l'empereur romain lors de l'incendie de Rome en 64 après J.-C. ?",
     "options": [
@@ -31,22 +129,8 @@
   },
   {
     "id": "hist_003",
-    "type": "duo",
-    "category": "histoire",
-    "difficulty": "easy",
-    "question": "La guerre de Cent Ans a duré plus de 100 ans",
-    "options": [
-      { "id": "a", "text": "Vrai", "isCorrect": true },
-      { "id": "b", "text": "Faux", "isCorrect": false }
-    ],
-    "explanation": "La guerre de Cent Ans a duré de 1337 à 1453, soit 116 ans.",
-    "points": 10,
-    "timeLimit": 15
-  },
-  {
-    "id": "hist_004",
     "type": "carre",
-    "category": "histoire",
+    "category": "histoire-politique",
     "difficulty": "hard",
     "question": "Quel traité a mis fin à la Première Guerre mondiale ?",
     "options": [
@@ -60,9 +144,9 @@
     "timeLimit": 25
   },
   {
-    "id": "hist_005",
+    "id": "hist_004",
     "type": "cash",
-    "category": "histoire",
+    "category": "histoire-politique",
     "difficulty": "medium",
     "question": "Combien de rois Louis la France a-t-elle eu ?",
     "options": [
@@ -77,22 +161,24 @@
   },
   {
     "id": "geo_001",
-    "type": "duo",
-    "category": "geographie",
+    "type": "carre",
+    "category": "geographie-economie",
     "difficulty": "easy",
-    "question": "La capitale de l'Australie est Sydney",
+    "question": "Quelle est la capitale de l'Australie ?",
     "options": [
-      { "id": "a", "text": "Vrai", "isCorrect": false },
-      { "id": "b", "text": "Faux", "isCorrect": true }
+      { "id": "a", "text": "Sydney", "isCorrect": false },
+      { "id": "b", "text": "Canberra", "isCorrect": true },
+      { "id": "c", "text": "Melbourne", "isCorrect": false },
+      { "id": "d", "text": "Brisbane", "isCorrect": false }
     ],
     "explanation": "La capitale de l'Australie est Canberra, pas Sydney qui est la ville la plus peuplée.",
-    "points": 10,
-    "timeLimit": 15
+    "points": 20,
+    "timeLimit": 20
   },
   {
     "id": "geo_002",
     "type": "carre",
-    "category": "geographie",
+    "category": "geographie-economie",
     "difficulty": "medium",
     "question": "Quel est le plus long fleuve du monde ?",
     "options": [
@@ -107,22 +193,8 @@
   },
   {
     "id": "geo_003",
-    "type": "duo",
-    "category": "geographie",
-    "difficulty": "easy",
-    "question": "Combien y a-t-il de continents sur Terre ?",
-    "options": [
-      { "id": "a", "text": "5", "isCorrect": false },
-      { "id": "b", "text": "7", "isCorrect": true }
-    ],
-    "explanation": "Il y a 7 continents : Afrique, Amérique du Nord, Amérique du Sud, Antarctique, Asie, Europe et Océanie.",
-    "points": 10,
-    "timeLimit": 15
-  },
-  {
-    "id": "geo_004",
     "type": "carre",
-    "category": "geographie",
+    "category": "geographie-economie",
     "difficulty": "hard",
     "question": "Quel pays a le plus de fuseaux horaires ?",
     "options": [
@@ -136,9 +208,9 @@
     "timeLimit": 25
   },
   {
-    "id": "geo_005",
+    "id": "geo_004",
     "type": "cash",
-    "category": "geographie",
+    "category": "geographie-economie",
     "difficulty": "medium",
     "question": "Quelle est la capitale du Canada ?",
     "options": [
@@ -152,53 +224,57 @@
     "timeLimit": 20
   },
   {
-    "id": "sci_001",
-    "type": "duo",
-    "category": "sciences",
+    "id": "gastro_001",
+    "type": "carre",
+    "category": "gastronomie",
     "difficulty": "easy",
-    "question": "La lumière voyage plus vite que le son",
+    "question": "Quel pays est le berceau de la pizza ?",
     "options": [
-      { "id": "a", "text": "Vrai", "isCorrect": true },
-      { "id": "b", "text": "Faux", "isCorrect": false }
+      { "id": "a", "text": "France", "isCorrect": false },
+      { "id": "b", "text": "Italie", "isCorrect": true },
+      { "id": "c", "text": "Espagne", "isCorrect": false },
+      { "id": "d", "text": "Grèce", "isCorrect": false }
     ],
-    "explanation": "La lumière voyage à environ 300 000 km/s, tandis que le son voyage à environ 340 m/s dans l'air.",
-    "points": 10,
-    "timeLimit": 15
+    "explanation": "La pizza moderne est née à Naples, en Italie, au 18ème siècle.",
+    "points": 20,
+    "timeLimit": 20
   },
   {
-    "id": "sci_002",
+    "id": "gastro_002",
     "type": "carre",
-    "category": "sciences",
+    "category": "gastronomie",
     "difficulty": "medium",
-    "question": "Quel est le symbole chimique de l'or ?",
+    "question": "Quel fromage français est surnommé le roi des fromages ?",
     "options": [
-      { "id": "a", "text": "Go", "isCorrect": false, "phoneticText": "G-O", "phoneticKeywords": ["géo", "g o", "gé ho"] },
-      { "id": "b", "text": "Au", "isCorrect": true, "phoneticText": "A-U", "phoneticKeywords": ["hahu", "a u", "eau air"] },
-      { "id": "c", "text": "Ag", "isCorrect": false, "phoneticText": "A-G", "phoneticKeywords": ["agé", "a g", "a j"] },
-      { "id": "d", "text": "Or", "isCorrect": false, "phoneticText": "O-R", "phoneticKeywords": ["hors", "o r", "eau air"] }
+      { "id": "a", "text": "Camembert", "isCorrect": false },
+      { "id": "b", "text": "Brie", "isCorrect": true },
+      { "id": "c", "text": "Roquefort", "isCorrect": false },
+      { "id": "d", "text": "Comté", "isCorrect": false }
     ],
-    "explanation": "Le symbole de l'or est Au, du latin 'aurum'.",
+    "explanation": "Le Brie est traditionnellement surnommé le roi des fromages depuis le Congrès de Vienne en 1815.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "sci_001",
+    "type": "carre",
+    "category": "sciences-technologie",
+    "difficulty": "easy",
+    "question": "Combien de planètes y a-t-il dans le système solaire ?",
+    "options": [
+      { "id": "a", "text": "7", "isCorrect": false },
+      { "id": "b", "text": "8", "isCorrect": true },
+      { "id": "c", "text": "9", "isCorrect": false },
+      { "id": "d", "text": "10", "isCorrect": false }
+    ],
+    "explanation": "Il y a 8 planètes depuis que Pluton a été reclassée comme planète naine en 2006.",
     "points": 20,
     "timeLimit": 20
   },
   {
     "id": "sci_003",
-    "type": "duo",
-    "category": "sciences",
-    "difficulty": "easy",
-    "question": "Combien de planètes y a-t-il dans le système solaire ?",
-    "options": [
-      { "id": "a", "text": "8", "isCorrect": true },
-      { "id": "b", "text": "9", "isCorrect": false }
-    ],
-    "explanation": "Il y a 8 planètes depuis que Pluton a été reclassée comme planète naine en 2006.",
-    "points": 10,
-    "timeLimit": 15
-  },
-  {
-    "id": "sci_004",
     "type": "carre",
-    "category": "sciences",
+    "category": "sciences-technologie",
     "difficulty": "hard",
     "question": "Quelle est la vitesse de la lumière dans le vide ?",
     "options": [
@@ -212,9 +288,9 @@
     "timeLimit": 25
   },
   {
-    "id": "sci_005",
+    "id": "sci_004",
     "type": "cash",
-    "category": "sciences",
+    "category": "sciences-technologie",
     "difficulty": "medium",
     "question": "Combien d'os compte le corps humain adulte ?",
     "options": [
@@ -224,6 +300,70 @@
       { "id": "d", "text": "246", "isCorrect": false }
     ],
     "explanation": "Le squelette humain adulte comprend 206 os.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "social_001",
+    "type": "carre",
+    "category": "sociales",
+    "difficulty": "easy",
+    "question": "Quel réseau social utilise un oiseau bleu comme logo ?",
+    "options": [
+      { "id": "a", "text": "Facebook", "isCorrect": false },
+      { "id": "b", "text": "Twitter", "isCorrect": true },
+      { "id": "c", "text": "Instagram", "isCorrect": false },
+      { "id": "d", "text": "LinkedIn", "isCorrect": false }
+    ],
+    "explanation": "Twitter, maintenant appelé X, utilisait un oiseau bleu comme logo emblématique.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "social_002",
+    "type": "carre",
+    "category": "sociales",
+    "difficulty": "medium",
+    "question": "En quelle année Facebook a-t-il été créé ?",
+    "options": [
+      { "id": "a", "text": "2002", "isCorrect": false },
+      { "id": "b", "text": "2004", "isCorrect": true },
+      { "id": "c", "text": "2006", "isCorrect": false },
+      { "id": "d", "text": "2008", "isCorrect": false }
+    ],
+    "explanation": "Facebook a été créé par Mark Zuckerberg en 2004 à l'université de Harvard.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "people_001",
+    "type": "carre",
+    "category": "people",
+    "difficulty": "easy",
+    "question": "Qui est le fondateur de SpaceX ?",
+    "options": [
+      { "id": "a", "text": "Jeff Bezos", "isCorrect": false },
+      { "id": "b", "text": "Elon Musk", "isCorrect": true },
+      { "id": "c", "text": "Bill Gates", "isCorrect": false },
+      { "id": "d", "text": "Steve Jobs", "isCorrect": false }
+    ],
+    "explanation": "Elon Musk a fondé SpaceX en 2002 avec l'objectif de coloniser Mars.",
+    "points": 20,
+    "timeLimit": 20
+  },
+  {
+    "id": "people_002",
+    "type": "carre",
+    "category": "people",
+    "difficulty": "medium",
+    "question": "Quelle chanteuse est surnommée la Reine de la Pop ?",
+    "options": [
+      { "id": "a", "text": "Beyoncé", "isCorrect": false },
+      { "id": "b", "text": "Madonna", "isCorrect": true },
+      { "id": "c", "text": "Lady Gaga", "isCorrect": false },
+      { "id": "d", "text": "Taylor Swift", "isCorrect": false }
+    ],
+    "explanation": "Madonna est couramment appelée la Reine de la Pop depuis les années 1980.",
     "points": 20,
     "timeLimit": 20
   }
