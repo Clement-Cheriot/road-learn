@@ -472,15 +472,24 @@ const Quiz = () => {
   };
 
   const handleNextQuestion = async () => {
-    // Nettoyer le cache audio et les refs
-    cancelReadingRef.current = false;
+    // 1. D'abord annuler toute lecture en cours
+    cancelReadingRef.current = true;
+    
+    // 2. Attendre que l'audio soit vraiment stoppé
     await audioServiceRef.stopSpeaking();
     
+    // 3. Petit délai pour s'assurer que tout est nettoyé
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 4. Réinitialiser tous les états à zéro
     setSelectedOptionId(null);
     setStartTime(new Date());
     setQuestionStartTime(Date.now());
     setTimerStarted(false);
     setIsReadingQuestion(false);
+    cancelReadingRef.current = false;
+    
+    // 5. Passer à la question suivante (déclenchera le useEffect qui relancera la lecture)
     nextQuestion();
   };
 
