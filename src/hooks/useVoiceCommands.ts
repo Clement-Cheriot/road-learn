@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { createSpeechService } from '@/services/speech/SpeechServiceFactory';
+import { createSpeechService, resetSpeechService } from '@/services/speech/SpeechServiceFactory';
 import { addVoiceLog } from '@/components/VoiceDebugPanel';
 
 interface VoiceCommand {
@@ -73,6 +73,22 @@ const stopGlobalListeningIfIdle = async () => {
   }
 };
 
+export const resetVoiceEngine = async () => {
+  try {
+    const speechService = ensureService();
+    if (speechService.isListening()) {
+      await speechService.stopListening();
+    }
+  } catch {}
+  subscribers = [];
+  errorSubscribers = [];
+  activeCount = 0;
+  isServiceListening = false;
+  serviceInitialized = false;
+  resetSpeechService();
+  addVoiceLog('action', 'Moteur vocal réinitialisé');
+};
+
 export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = true) => {
   const [isListening, setIsListening] = useState(false);
   const [lastCommand, setLastCommand] = useState<string>('');
@@ -123,3 +139,19 @@ export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = tr
 
   return { isListening: isListening || isServiceListening, lastCommand };
 };
+
+// HMR: reset voice engine on module dispose to release mic and listeners
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (typeof import.meta !== 'undefined' && (import.meta as any).hot) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (import.meta as any).hot.dispose(() => {
+    resetVoiceEngine();
+  });
+}
+
+// Expose manual reset for debugging
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (typeof window !== 'undefined') {
+  (window as any).__resetVoice = resetVoiceEngine;
+}
+
