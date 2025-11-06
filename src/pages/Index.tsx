@@ -110,18 +110,10 @@ const Index = () => {
     };
   };
 
-  const selectCategory = async (category: Category) => {
+  const selectCategory = (category: Category) => {
     if (category === 'mixte') {
-      if (audioEnabled) {
-        const audio = createAudioService();
-        await audio.speak('Démarrage du quiz mixte');
-      }
       navigate(`/quiz/${category}/1`);
     } else {
-      if (audioEnabled) {
-        const audio = createAudioService();
-        await audio.speak(`Sélection ${getCategoryLabel(category)}`);
-      }
       navigate(`/level/${category}`);
     }
   };
