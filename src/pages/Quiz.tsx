@@ -54,7 +54,8 @@ const Quiz = () => {
   const currentQuestionRef = useRef<Question | null>(null);
   const selectedAnswerRef = useRef<string | null>(null); // ⬅️ AJOUTER
   const handleAnswerRef = useRef<(answer: string) => void>(); // ⬅️ AJOUTER
-  const handleNextQuestionRef = useRef<() => void>(); // ⬅️ AJOUTER
+  const handleNextQuestionRef = useRef<() => void>(); // ⬅️ Pour commande vocale (avec annonce)
+  const handleNextQuestionDirectRef = useRef<() => void>(); // ⬅️ Pour auto-advance (sans annonce)
   const handleGoHomeRef = useRef<() => void>(); // ⬅️ AJOUTER
 
   const currentQuestion = quizQuestions[currentQuestionIndex];
@@ -93,10 +94,15 @@ const Quiz = () => {
     return () => clearInterval(interval);
   }, [timerStarted, timeLeft]);
 
-  // Parler la question au changement
+  // Parler la question au changement (avec délai pour laisser "Question suivante" finir)
   useEffect(() => {
     if (currentQuestion && !isLoading) {
-      speakQuestion();
+      // ⬇️ Attendre 1.5s pour laisser "Question suivante" finir
+      const timeout = setTimeout(() => {
+        speakQuestion();
+      }, 1500);
+
+      return () => clearTimeout(timeout);
     }
   }, [currentQuestionIndex, isLoading]);
 
@@ -354,25 +360,33 @@ const Quiz = () => {
     }
   };
 
-  const handleNextQuestion = async () => {
+  const handleNextQuestion = async (skipAudioStop = false) => {
     console.log('\n🎯 === HANDLE NEXT QUESTION START ===');
 
-    // Annuler l'auto-advance timer
+    // ⬇️ CRITIQUE : Annuler l'auto-advance timer EN PREMIER
     if (autoAdvanceTimerRef.current) {
+      console.log('🛑 Cancelling auto-advance timer');
       clearTimeout(autoAdvanceTimerRef.current);
       autoAdvanceTimerRef.current = null;
     }
 
-    // STOP complet avant de changer de question
-    console.log('🛑 Cancelling current reading...');
-    cancelReadingRef.current = true;
-    setIsReadingQuestion(true);
-    setTimerStarted(false);
+    // STOP complet avant de changer de question (sauf si on vient de dire "Question suivante")
+    if (!skipAudioStop) {
+      console.log('🛑 Cancelling current reading...');
+      cancelReadingRef.current = true;
+      setIsReadingQuestion(true);
+      setTimerStarted(false);
 
-    // Arrêter l'audio
-    console.log('🛑 Stopping audio service...');
-    await audioServiceRef.current.stopSpeaking();
-    await new Promise((resolve) => setTimeout(resolve, 200));
+      // Arrêter l'audio
+      console.log('🛑 Stopping audio service...');
+      await audioServiceRef.current.stopSpeaking();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    } else {
+      console.log('⏩ Skipping audio stop (already announced)');
+      cancelReadingRef.current = true;
+      setIsReadingQuestion(true);
+      setTimerStarted(false);
+    }
 
     // CRITIQUE : Arrêter et redémarrer la reconnaissance pour reset le buffer
     console.log('🔄 Restarting speech recognition to clear buffer...');
@@ -402,17 +416,43 @@ const Quiz = () => {
     }
 
     console.log('➡️ Moving to next question...');
+    setSelectedAnswer(null); // ⬅️ Reset AVANT pour éviter le flash
+    await new Promise((resolve) => setTimeout(resolve, 50)); // ⬅️ Laisser React update
     setCurrentQuestionIndex(nextIndex);
-    setSelectedAnswer(null);
     setTimeLeft(30);
 
     // ⬇️ NE PAS appeler speakQuestion ici, le useEffect le fera
     console.log('✅ === HANDLE NEXT QUESTION END (useEffect will speak) ===\n');
   };
 
-  // Mettre à jour la ref
+  // ⬇️ Fonction pour commande vocale "suivante" (seulement si réponse déjà donnée)
+  const handleNextQuestionWithAnnouncement = async () => {
+    console.log('🎤 === NEXT QUESTION WITH ANNOUNCEMENT ===');
+
+    // Vérifier qu'une réponse a été donnée
+    if (!selectedAnswerRef.current) {
+      console.log('⚠️ Cannot skip - no answer given yet');
+      return;
+    }
+
+    console.log('⏭️ User wants to skip explanation');
+
+    // Arrêter tout audio en cours (explication)
+    await audioServiceRef.current.stopSpeaking();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Dire "Question suivante"
+    await audioServiceRef.current.speak('Question suivante', { rate: 0.75 });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Passer à la question suivante
+    await handleNextQuestion(true); // skipAudioStop=true car on vient de parler
+  };
+
+  // Mettre à jour les refs
   useEffect(() => {
-    handleNextQuestionRef.current = handleNextQuestion;
+    handleNextQuestionRef.current = handleNextQuestionWithAnnouncement; // ⬅️ Pour commande vocale
+    handleNextQuestionDirectRef.current = handleNextQuestion; // ⬅️ Pour auto-advance
   });
 
   const handleAnswer = async (answer: string) => {
@@ -479,18 +519,30 @@ const Quiz = () => {
       });
     }
 
+    // ⬇️ Vérifier si l'utilisateur n'a pas déjà dit "suivante" pendant l'explication
+    if (autoAdvanceTimerRef.current === null) {
+      console.log('⏭️ User already skipped, stopping handleAnswer flow');
+      return; // ⬅️ Arrêter ici, l'utilisateur a pris le contrôle
+    }
+
     // Annoncer "Question suivante"
     await new Promise((resolve) => setTimeout(resolve, 500));
     await audioServiceRef.current.speak('Question suivante', { rate: 0.75 });
 
     console.log('✅ === HANDLE ANSWER END ===\n');
 
-    // Auto-avancer après 500ms
-    console.log('⏱️ Auto-advance scheduled in 0.5s...');
-    autoAdvanceTimerRef.current = setTimeout(() => {
+    // ⬇️ Attendre un peu APRÈS "Question suivante" avant d'auto-avancer
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // ⬇️ Vérifier que le timer n'a pas déjà été annulé (si l'utilisateur a dit "suivante")
+    if (autoAdvanceTimerRef.current !== null) {
       console.log('⏱️ Auto-advance triggered');
-      handleNextQuestionRef.current?.();
-    }, 500);
+      // ⬇️ Mettre le timer à null pour indiquer qu'on avance
+      autoAdvanceTimerRef.current = null;
+      handleNextQuestionDirectRef.current?.(); // ⬅️ Version SANS annonce (déjà dite)
+    } else {
+      console.log('⏱️ Auto-advance skipped (already advanced by user)');
+    }
   };
 
   // Mettre à jour la ref
@@ -537,15 +589,28 @@ const Quiz = () => {
         });
       }
 
+      // ⬇️ Vérifier si l'utilisateur n'a pas déjà dit "suivante"
+      if (autoAdvanceTimerRef.current === null) {
+        console.log('⏭️ User already skipped, stopping handleTimeUp flow');
+        return;
+      }
+
       // Annoncer "Question suivante"
       await new Promise((resolve) => setTimeout(resolve, 500));
       await audioServiceRef.current.speak('Question suivante', { rate: 0.75 });
     }
 
-    // Auto-avancer après 500ms
-    autoAdvanceTimerRef.current = setTimeout(() => {
-      handleNextQuestionRef.current?.();
-    }, 500);
+    // ⬇️ Attendre un peu APRÈS "Question suivante" avant d'auto-avancer
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // ⬇️ Vérifier que le timer n'a pas déjà été annulé
+    if (autoAdvanceTimerRef.current !== null) {
+      console.log('⏱️ Auto-advance triggered (timeout)');
+      autoAdvanceTimerRef.current = null;
+      handleNextQuestionDirectRef.current?.(); // ⬅️ Version SANS annonce (déjà dite)
+    } else {
+      console.log('⏱️ Auto-advance skipped (already advanced by user)');
+    }
   };
 
   const handleGoHome = async () => {
