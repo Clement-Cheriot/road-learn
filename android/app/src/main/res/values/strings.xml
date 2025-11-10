@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Road Learn</string>
+    <string name="title_activity_main">Road Learn</string>
+    <string name="package_name">com.roadlearn.app</string>
+    <string name="custom_url_scheme">com.roadlearn.app</string>
+</resources>

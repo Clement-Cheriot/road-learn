@@ -4,7 +4,7 @@
 
 export type QuestionType = 'carre' | 'cash';
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type Category = 
+export type Category =
   | 'arts-litterature'
   | 'divertissement'
   | 'sport'
@@ -33,6 +33,7 @@ export interface Question {
   difficulty: Difficulty;
   question: string;
   options: QuestionOption[];
+  correctAnswer?: string; // Rendre optionnel car calculé à partir des options
   explanation?: string;
   points: number;
   timeLimit: number; // en secondes

@@ -1,37 +1,15 @@
-/**
- * Factory pattern pour créer le bon service audio selon la plateforme
- * Switche automatiquement entre Web et Native
- */
-
-import type { IAudioService } from './AudioService.interface';
-import { WebAudioService } from './WebAudioService';
+import { Capacitor } from '@capacitor/core';
+import { IAudioService } from './AudioService.interface';
 import { NativeAudioService } from './NativeAudioService';
-import { isNativeApp } from '../platform/PlatformDetector';
+import { WebAudioService } from './WebAudioService';
 
-let audioServiceInstance: IAudioService | null = null;
-
-/**
- * Crée ou retourne l'instance singleton du service audio approprié
- */
-export const createAudioService = (): IAudioService => {
-  if (audioServiceInstance) {
-    return audioServiceInstance;
-  }
-
-  if (isNativeApp()) {
-    console.log('🚀 Using Native Audio Service (Capacitor)');
-    audioServiceInstance = new NativeAudioService();
+export function createAudioService(): IAudioService {
+  // Détection automatique de la plateforme
+  if (Capacitor.isNativePlatform()) {
+    //  console.log('🎵 Using Native TTS (iOS/Android)');
+    return new NativeAudioService();
   } else {
-    console.log('🌐 Using Web Audio Service (Browser)');
-    audioServiceInstance = new WebAudioService();
+    // console.log('🎵 Using Web Speech API');
+    return new WebAudioService();
   }
-
-  return audioServiceInstance;
-};
-
-/**
- * Reset de l'instance (utile pour tests)
- */
-export const resetAudioService = (): void => {
-  audioServiceInstance = null;
-};
+}

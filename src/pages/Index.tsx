@@ -32,8 +32,32 @@ const Index = () => {
       // Charger les questions en IndexedDB (première fois uniquement)
       const existingQuestions = await storage.getQuestions();
       if (existingQuestions.length === 0) {
-        await storage.saveQuestions(questionsData as any);
-        console.log('✅ Questions chargées dans IndexedDB');
+        // Transformer les questions JSON au bon format
+        const transformedQuestions = questionsData.map((q: any) => {
+          const correctOption = q.options.find((opt: any) => opt.isCorrect);
+          return {
+            ...q,
+            correctAnswer: correctOption?.text || '',
+            options: q.options.map((opt: any) => ({
+              id: opt.id,
+              text: opt.text,
+              phoneticText: opt.phoneticText,
+              phoneticKeywords: opt.phoneticKeywords,
+            })),
+          };
+        });
+        await storage.saveQuestions(transformedQuestions);
+        console.log(
+          '✅ Questions chargées dans IndexedDB:',
+          transformedQuestions.length,
+          'questions'
+        );
+      } else {
+        console.log(
+          '✅ Questions déjà présentes:',
+          existingQuestions.length,
+          'questions'
+        );
       }
 
       // Charger ou créer la progression utilisateur
@@ -69,33 +93,78 @@ const Index = () => {
     streak: 0,
     lastPlayedAt: new Date(),
     categoryStats: {
-      'arts-litterature': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      'divertissement': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      'sport': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      'histoire-politique': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      'geographie-economie': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      'gastronomie': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      'sciences-technologie': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      'sociales': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
-      'people': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'arts-litterature': {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
+      divertissement: {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
+      sport: {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
+      'histoire-politique': {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
+      'geographie-economie': {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
+      gastronomie: {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
+      'sciences-technologie': {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
+      sociales: {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
+      people: {
+        questionsAnswered: 0,
+        correctAnswers: 0,
+        accuracy: 0,
+        bestStreak: 0,
+      },
     },
     unlockedLevels: {
       'arts-litterature': [1, 2, 3, 4, 5],
-      'divertissement': [1, 2, 3, 4, 5],
-      'sport': [1, 2, 3, 4, 5],
+      divertissement: [1, 2, 3, 4, 5],
+      sport: [1, 2, 3, 4, 5],
       'histoire-politique': [1, 2, 3, 4, 5],
       'geographie-economie': [1, 2, 3, 4, 5],
-      'gastronomie': [1, 2, 3, 4, 5],
+      gastronomie: [1, 2, 3, 4, 5],
       'sciences-technologie': [1, 2, 3, 4, 5],
-      'sociales': [1, 2, 3, 4, 5],
-      'people': [1, 2, 3, 4, 5],
+      sociales: [1, 2, 3, 4, 5],
+      people: [1, 2, 3, 4, 5],
     },
     hasPremium: true, // Pour les tests, tout est débloqué
   });
 
   const migrateProgress = (oldProgress: UserProgress): UserProgress => {
     const defaultProgress = createDefaultProgress();
-    
+
     return {
       ...oldProgress,
       categoryStats: {
@@ -121,15 +190,15 @@ const Index = () => {
   const getCategoryLabel = (category: Category): string => {
     const labels: Record<Category, string> = {
       'arts-litterature': 'Arts & Littérature',
-      'divertissement': 'Divertissement',
-      'sport': 'Sport',
+      divertissement: 'Divertissement',
+      sport: 'Sport',
       'histoire-politique': 'Histoire & Politique',
       'geographie-economie': 'Géographie & Économie',
-      'gastronomie': 'Gastronomie',
+      gastronomie: 'Gastronomie',
       'sciences-technologie': 'Sciences & Technologie',
-      'sociales': 'Sociales',
-      'people': 'People',
-      'mixte': 'Quiz Mixte',
+      sociales: 'Sociales',
+      people: 'People',
+      mixte: 'Quiz Mixte',
     };
     return labels[category];
   };
@@ -137,15 +206,15 @@ const Index = () => {
   const getCategoryEmoji = (category: Category): string => {
     const emojis: Record<Category, string> = {
       'arts-litterature': '🎨',
-      'divertissement': '🎬',
-      'sport': '⚽',
+      divertissement: '🎬',
+      sport: '⚽',
       'histoire-politique': '🏛️',
       'geographie-economie': '🌍',
-      'gastronomie': '🍽️',
+      gastronomie: '🍽️',
       'sciences-technologie': '🔬',
-      'sociales': '👥',
-      'people': '⭐',
-      'mixte': '🎲',
+      sociales: '👥',
+      people: '⭐',
+      mixte: '🎲',
     };
     return emojis[category];
   };
@@ -165,7 +234,7 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
-        <header className="mb-6 text-center">
+        <header className="mb-6 mt-12 text-center">
           <div className="mb-3 flex items-center justify-center gap-2">
             <div className="rounded-xl bg-gradient-primary p-3 shadow-primary">
               <Brain className="h-8 w-8 text-primary-foreground" />
@@ -174,9 +243,7 @@ const Index = () => {
           <h1 className="mb-2 bg-gradient-hero bg-clip-text text-3xl font-bold text-transparent md:text-5xl">
             QuizMaster
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Apprends en t'amusant
-          </p>
+          <p className="text-sm text-muted-foreground">Apprends en t'amusant</p>
         </header>
 
         {/* Profil utilisateur */}
@@ -185,7 +252,9 @@ const Index = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Niveau</p>
-                <p className="text-2xl font-bold text-primary">{progress.level}</p>
+                <p className="text-2xl font-bold text-primary">
+                  {progress.level}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">XP</p>
@@ -195,7 +264,11 @@ const Index = () => {
                 <p className="text-xs text-muted-foreground">Précision</p>
                 <p className="text-xl font-bold text-success">
                   {progress.totalQuestions > 0
-                    ? Math.round((progress.totalCorrectAnswers / progress.totalQuestions) * 100)
+                    ? Math.round(
+                        (progress.totalCorrectAnswers /
+                          progress.totalQuestions) *
+                          100
+                      )
                     : 0}
                   %
                 </p>
@@ -206,7 +279,9 @@ const Index = () => {
 
         {/* Contrôle audio */}
         <div className="mb-4 flex items-center justify-center gap-2">
-          <Volume2 className={`h-4 w-4 ${audioEnabled ? 'text-success' : 'text-muted-foreground'}`} />
+          <Volume2
+            className={`h-4 w-4 ${audioEnabled ? 'text-success' : 'text-muted-foreground'}`}
+          />
           <span className="text-xs text-muted-foreground">
             {audioEnabled ? 'Audio activé' : 'Audio désactivé'}
           </span>
@@ -233,30 +308,41 @@ const Index = () => {
         </div>
 
         {/* Catégories */}
-        <h2 className="mb-3 text-center text-lg font-bold">Ou choisis une catégorie</h2>
+        <h2 className="mb-3 text-center text-lg font-bold">
+          Ou choisis une catégorie
+        </h2>
         <div className="mb-6 grid gap-3 grid-cols-2 md:grid-cols-3">
-          {([
-            'arts-litterature',
-            'divertissement',
-            'sport',
-            'histoire-politique',
-            'geographie-economie',
-            'gastronomie',
-            'sciences-technologie',
-            'sociales',
-            'people',
-          ] as const).map((category) => (
+          {(
+            [
+              'arts-litterature',
+              'divertissement',
+              'sport',
+              'histoire-politique',
+              'geographie-economie',
+              'gastronomie',
+              'sciences-technologie',
+              'sociales',
+              'people',
+            ] as const
+          ).map((category) => (
             <Card
               key={category}
               className="group cursor-pointer overflow-hidden transition-all active:scale-95 hover:shadow-primary"
               onClick={() => selectCategory(category)}
             >
               <div className="p-4 text-center">
-                <div className="mb-2 text-4xl">{getCategoryEmoji(category)}</div>
-                <h3 className="mb-2 text-sm font-bold leading-tight">{getCategoryLabel(category)}</h3>
+                <div className="mb-2 text-4xl">
+                  {getCategoryEmoji(category)}
+                </div>
+                <h3 className="mb-2 text-sm font-bold leading-tight">
+                  {getCategoryLabel(category)}
+                </h3>
                 {progress && (
                   <div className="text-xs text-muted-foreground mb-3">
-                    <p>{progress.categoryStats[category].questionsAnswered} questions</p>
+                    <p>
+                      {progress.categoryStats[category].questionsAnswered}{' '}
+                      questions
+                    </p>
                     <p className="text-success">
                       {Math.round(progress.categoryStats[category].accuracy)}%
                     </p>
@@ -293,9 +379,7 @@ const Index = () => {
 
         {/* Info plateforme */}
         <div className="mt-6 rounded-lg bg-card p-3 text-center text-xs text-muted-foreground">
-          <p>
-            🌐 Version Web (POC)
-          </p>
+          <p>🌐 Version Web (POC)</p>
         </div>
       </div>
     </div>

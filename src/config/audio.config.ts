@@ -20,6 +20,15 @@ export const AUDIO_CONFIG = {
     pauseAfterQuestion: 2000, // 2s pause après question
     pauseBetweenOptions: 1000, // 1s pause entre options
     repeatOnError: true, // Répéter si pas compris
+    voice: 2, // ⬅️ AJOUTER : Voix iOS (teste 0, 1, 2, 3, 4)
+  },
+
+  // Voix natives par index (iOS)
+  voiceOptions: {
+    default: 0,   // Voix système par défaut
+    clear: 1,     // Voix claire et nette
+    warm: 2,      // Voix chaleureuse
+    deep: 3,      // Voix grave
   },
 
   // Voix préférées par plateforme (iOS/Android natif)

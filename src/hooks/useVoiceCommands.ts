@@ -1,172 +1,114 @@
-/**
- * Hook personnalisé pour les commandes vocales
- */
-
-import { useEffect, useState } from 'react';
-import { createSpeechService, resetSpeechService } from '@/services/speech/SpeechServiceFactory';
+import { useEffect, useRef } from 'react';
+import { createSpeechService } from '@/services/speech/SpeechServiceFactory';
+import type { ISpeechService } from '@/services/speech/SpeechService.interface';
 import { addVoiceLog } from '@/components/VoiceDebugPanel';
-import { requestMicrophonePermission } from '@/services/audio/MicrophonePermission';
 
 interface VoiceCommand {
   keywords: string[];
   action: () => void | Promise<void>;
 }
 
-// Dispatcher global pour permettre plusieurs hooks simultanés sans conflit
-let subscribers: Array<(transcript: string) => void> = [];
-let errorSubscribers: Array<(error: Error) => void> = [];
-let serviceInitialized = false;
-let activeCount = 0;
-let isServiceListening = false;
+// ⬇️ SINGLETON global
+let globalSpeechService: ISpeechService | null = null;
+let isGlobalListening = false;
 
-const ensureService = () => {
-  const speechService = createSpeechService();
-  if (!serviceInitialized) {
-    speechService.onResult((result) => {
-      const transcript = result.transcript.toLowerCase();
-      if (!result.isFinal) {
-        // Loguer les résultats intermédiaires pour le Voice Debug, sans déclencher d'action
-        addVoiceLog('heard', `(interim) "${transcript}"`);
-        return;
-      }
-      // Résultat final: log + dispatch aux abonnés (exécution des commandes)
-      addVoiceLog('heard', `"${transcript}"`);
-      subscribers.forEach((fn) => {
-        try { fn(transcript); } catch (e) { /* noop */ }
-      });
-    });
-    speechService.onError((error) => {
-      console.error('Erreur reconnaissance vocale:', error);
-      addVoiceLog('error', `Reconnaissance: ${error.message}`);
-      errorSubscribers.forEach((fn) => fn(error));
-      isServiceListening = false;
-    });
-    serviceInitialized = true;
-  }
-  return speechService;
-};
+export function useVoiceCommands(
+  commands: VoiceCommand[],
+  enabled: boolean = true
+) {
+  const commandsRef = useRef(commands);
+  const hasStartedRef = useRef(false); // ⬅️ AJOUTER : éviter redémarrages
 
-const startGlobalListening = async () => {
-  const speechService = ensureService();
-  try {
-    // 1. Vérifier la disponibilité
-    const available = await speechService.isAvailable();
-    if (!available) {
-      console.warn('Reconnaissance vocale non disponible');
-      addVoiceLog('error', 'Reconnaissance vocale non disponible sur ce navigateur');
-      return false;
-    }
-
-    // 2. Demander la permission microphone d'abord
-    const micGranted = await requestMicrophonePermission();
-    if (!micGranted) {
-      console.error('❌ Permission microphone refusée');
-      addVoiceLog('error', 'Permission microphone refusée. Autorisez le micro dans les paramètres du navigateur.');
-      return false;
-    }
-
-    // 3. Démarrer l'écoute
-    if (!speechService.isListening()) {
-      await speechService.startListening({ language: 'fr-FR', continuous: true, interimResults: true });
-    }
-    isServiceListening = true;
-    addVoiceLog('action', 'Écoute vocale activée');
-    return true;
-  } catch (e: any) {
-    console.error('Erreur initialisation reconnaissance vocale:', e);
-    addVoiceLog('error', `Échec: ${e.message || 'Erreur inconnue'}`);
-    isServiceListening = false;
-    return false;
-  }
-};
-
-const stopGlobalListeningIfIdle = async () => {
-  const speechService = ensureService();
-  if (activeCount <= 0 && speechService.isListening()) {
-    await speechService.stopListening();
-    isServiceListening = false;
-  }
-};
-
-export const resetVoiceEngine = async () => {
-  try {
-    const speechService = ensureService();
-    if (speechService.isListening()) {
-      await speechService.stopListening();
-    }
-  } catch {}
-  subscribers = [];
-  errorSubscribers = [];
-  activeCount = 0;
-  isServiceListening = false;
-  serviceInitialized = false;
-  resetSpeechService();
-  addVoiceLog('action', 'Moteur vocal réinitialisé');
-};
-
-export const useVoiceCommands = (commands: VoiceCommand[], enabled: boolean = true) => {
-  const [isListening, setIsListening] = useState(false);
-  const [lastCommand, setLastCommand] = useState<string>('');
+  // Mettre à jour les commandes sans re-démarrer
+  useEffect(() => {
+    commandsRef.current = commands;
+  }, [commands]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || commands.length === 0) {
+      console.log('⚠️ useVoiceCommands: disabled or no commands');
+      return;
+    }
 
-    const speechService = ensureService();
+    // ⬇️ PROTECTION : démarrer une seule fois par instance
+    if (hasStartedRef.current) {
+      console.log('⚠️ useVoiceCommands: already started, skipping');
+      return;
+    }
 
-    // Abonné local: fait correspondre et exécute
-    const subscriber = (transcript: string) => {
-      let matched = false;
-      for (const command of commands) {
-        if (command.keywords.some((keyword) => transcript.includes(keyword))) {
-          addVoiceLog('action', `Exécution: ${command.keywords[0]}`);
-          matched = true;
-          setLastCommand(transcript);
-          try {
-            const res = command.action();
-            if (res instanceof Promise) {
-              res.catch((err: any) => {
-                console.error('Erreur commande vocale:', err);
-                addVoiceLog('error', `Erreur: ${err.message}`);
-              });
-            }
-          } catch (err: any) {
-            console.error('Erreur commande vocale:', err);
-            addVoiceLog('error', `Erreur: ${err.message}`);
+    // ⬇️ Créer le service une seule fois
+    if (!globalSpeechService) {
+      console.log('🎤 Creating global speech service');
+      globalSpeechService = createSpeechService();
+    }
+
+    const startListening = async () => {
+      if (isGlobalListening) {
+        console.log('⚠️ Speech already listening globally');
+        hasStartedRef.current = true; // ⬅️ Marquer comme démarré
+        return;
+      }
+
+      try {
+        console.log('🎤 Starting global listening...');
+
+        globalSpeechService!.onResult((result) => {
+          if (!result.isFinal) return;
+
+          const transcript = result.transcript.toLowerCase().trim();
+          console.log('🎤 Voice input:', transcript);
+          addVoiceLog('heard', transcript);
+
+          // Chercher une commande correspondante
+          const matchedCommand = commandsRef.current.find((cmd) =>
+            cmd.keywords.some((keyword) =>
+              transcript.includes(keyword.toLowerCase())
+            )
+          );
+
+          if (matchedCommand) {
+            console.log('✅ Command matched:', matchedCommand.keywords[0]); // ⬅️ LOGGER la commande
+            addVoiceLog('action', `Commande: ${transcript}`);
+            matchedCommand.action();
+            setTimeout(async () => {
+              console.log('🔄 Delayed restart to allow navigation');
+              try {
+                await globalSpeechService!.stopListening();
+                await globalSpeechService!.startListening({
+                  language: 'fr-FR',
+                });
+              } catch (e) {
+                console.error('Error restarting:', e);
+              }
+            }, 1000); // ⬅️ 1 seconde de délai
+          } else {
+            // ⬇️ AJOUTER : Logger quand aucune commande ne correspond
+            console.log('⚠️ No command matched');
+            addVoiceLog('heard', `Pas de commande: ${transcript}`);
           }
-          break;
-        }
+        });
+
+        globalSpeechService!.onError((error) => {
+          console.error('❌ Speech error:', error);
+          addVoiceLog('error', error.message);
+        });
+
+        await globalSpeechService!.startListening({ language: 'fr-FR' });
+        isGlobalListening = true;
+        hasStartedRef.current = true; // ⬅️ Marquer comme démarré
+        console.log('✅ Global listening started');
+      } catch (error) {
+        console.error('❌ Error starting listening:', error);
+        hasStartedRef.current = true; // ⬅️ Même en cas d'erreur
       }
     };
 
-    subscribers.push(subscriber);
-    activeCount += 1;
+    startListening();
 
-    // Démarrer globalement si nécessaire
-    startGlobalListening().then((ok) => setIsListening(ok));
-
+    // Cleanup : NE PAS arrêter, juste marquer comme inactif
     return () => {
-      subscribers = subscribers.filter((fn) => fn !== subscriber);
-      activeCount -= 1;
-      stopGlobalListeningIfIdle();
-      setIsListening(false);
+      console.log('🧹 useVoiceCommands cleanup (keeping service alive)');
+      hasStartedRef.current = false; // ⬅️ Reset pour permettre redémarrage
     };
-  }, [commands, enabled]);
-
-  return { isListening: isListening || isServiceListening, lastCommand };
-};
-
-// HMR: reset voice engine on module dispose to release mic and listeners
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (typeof import.meta !== 'undefined' && (import.meta as any).hot) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (import.meta as any).hot.dispose(() => {
-    resetVoiceEngine();
-  });
+  }, [enabled]); // ⬅️ ENLEVER 'commands' des dépendances !
 }
-
-// Expose manual reset for debugging
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (typeof window !== 'undefined') {
-  (window as any).__resetVoice = resetVoiceEngine;
-}
-

@@ -1,10 +1,18 @@
 /**
- * Page Quiz - Moteur de jeu principal
+ * Page Quiz - Mode vocal hands-free
  */
 
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Timer, Volume2, VolumeX, Check, X, Home, Mic, MicOff } from 'lucide-react';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Clock,
+  Award,
+  Volume2,
+  VolumeX,
+  SkipForward,
+  Home,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -12,621 +20,672 @@ import { useQuizStore } from '@/stores/useQuizStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { createStorageService } from '@/services/storage/StorageServiceFactory';
 import { createAudioService } from '@/services/audio/AudioServiceFactory';
-import { useVoiceCommands } from '@/hooks/useVoiceCommands';
-import { useTimerSounds } from '@/hooks/useTimerSounds';
-import type { Category, Question, QuizSession, UserAnswer, Level } from '@/types/quiz.types';
+import { createSpeechService } from '@/services/speech/SpeechServiceFactory';
+import { addVoiceLog } from '@/components/VoiceDebugPanel'; // ⬅️ AJOUTÉ
+import type {
+  Question,
+  Category,
+  Level,
+  QuizSession,
+} from '@/types/quiz.types';
 
 const Quiz = () => {
-  const { category, level } = useParams<{ category: Category; level: string }>();
-  const quizLevel = (level ? parseInt(level) : 1) as Level;
   const navigate = useNavigate();
-  
-  const {
-    currentSession,
-    currentQuestion,
-    currentQuestionIndex,
-    timeRemaining,
-    showFeedback,
-    lastAnswerCorrect,
-    startSession,
-    submitAnswer,
-    nextQuestion,
-    setTimeRemaining,
-  } = useQuizStore();
+  const { category, level } = useParams<{ category: string; level: string }>();
+  const { currentSession, startSession, submitAnswer, endSession, resetQuiz } =
+    useQuizStore();
+  const { progress } = useUserStore();
 
-  const { progress, updateXP, updateCategoryStats } = useUserStore();
-  
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
-  const [startTime, setStartTime] = useState<Date>(new Date());
-  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
-  const [isReadingQuestion, setIsReadingQuestion] = useState(false);
+  // States
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(30);
   const [timerStarted, setTimerStarted] = useState(false);
-  const audioServiceRef = useState(() => createAudioService())[0];
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const cancelReadingRef = useRef<boolean>(false);
+  const [isReadingQuestion, setIsReadingQuestion] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Initialiser AudioContext pour les sons de feedback
+  // Refs
+  const audioServiceRef = useRef(createAudioService());
+  const speechServiceRef = useRef(createSpeechService());
+  const cancelReadingRef = useRef(false);
+  const autoAdvanceTimerRef = useRef<any>(null);
+  const currentQuestionRef = useRef<Question | null>(null);
+  const selectedAnswerRef = useRef<string | null>(null); // ⬅️ AJOUTER
+  const handleAnswerRef = useRef<(answer: string) => void>(); // ⬅️ AJOUTER
+  const handleNextQuestionRef = useRef<() => void>(); // ⬅️ AJOUTER
+  const handleGoHomeRef = useRef<() => void>(); // ⬅️ AJOUTER
+
+  const currentQuestion = quizQuestions[currentQuestionIndex];
+
+  // Mettre à jour les refs
   useEffect(() => {
-    if (!audioContextRef.current) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        audioContextRef.current = new AudioContextClass();
-      }
-    }
-  }, []);
+    currentQuestionRef.current = currentQuestion;
+  }, [currentQuestion]);
 
   useEffect(() => {
-    if (category) {
-      initializeQuiz(category);
-    }
-  }, [category]);
+    selectedAnswerRef.current = selectedAnswer;
+  }, [selectedAnswer]);
 
+  // Initialisation
   useEffect(() => {
-    if (currentSession?.isComplete) {
-      audioServiceRef.stopSpeaking().catch(() => {});
-      navigate('/results');
-    }
-  }, [currentSession?.isComplete]);
-
-  // Arrêter l'audio lors du démontage et retour au menu
-  useEffect(() => {
+    initializeQuiz();
     return () => {
-      audioServiceRef.stopSpeaking().catch(() => {});
-      cancelReadingRef.current = false;
+      cleanup();
     };
   }, []);
 
-  // Démarrer le timer uniquement après la lecture de la question
+  // Timer
   useEffect(() => {
-    if (!showFeedback && timeRemaining > 0 && timerStarted && !isReadingQuestion) {
-      const timer = setTimeout(() => {
-        setTimeRemaining(timeRemaining - 1);
-      }, 1000);
+    if (!timerStarted || timeLeft <= 0) return;
 
-      return () => clearTimeout(timer);
-    }
-
-    if (timeRemaining === 0 && !showFeedback && timerStarted) {
-      handleTimeout();
-    }
-  }, [timeRemaining, showFeedback, timerStarted, isReadingQuestion]);
-
-  useEffect(() => {
-    if (currentQuestion && audioEnabled) {
-      setTimerStarted(false); // Arrêter le timer pendant la lecture
-      setIsReadingQuestion(true);
-      setQuestionStartTime(Date.now()); // Timestamp pour le scoring
-      speakQuestion();
-    } else if (currentQuestion && !audioEnabled) {
-      // Si pas d'audio, démarrer le timer immédiatement
-      setTimerStarted(true);
-      setIsReadingQuestion(false);
-      setQuestionStartTime(Date.now()); // Timestamp pour le scoring
-    }
-  }, [currentQuestion, audioEnabled]);
-
-  // Sons du timer
-  useTimerSounds(timeRemaining, timerStarted && !showFeedback);
-
-  // Commandes vocales
-  const voiceCommands = useMemo(() => {
-    const commands: Array<{ keywords: string[]; action: () => void | Promise<void> }> = [];
-
-    // Commandes globales toujours actives
-    commands.push({ keywords: ['retour', 'menu', 'accueil', 'retour menu'], action: async () => {
-      cancelReadingRef.current = true;
-      await audioServiceRef.stopSpeaking();
-      navigate('/');
-    } });
-    commands.push({
-      keywords: ['stop lecture', 'arrête la lecture', 'silence', 'stop'],
-      action: async () => {
-        cancelReadingRef.current = true;
-        await audioServiceRef.stopSpeaking();
-        // Si on arrêtait la lecture de la question, démarrer le timer
-        if (isReadingQuestion && !showFeedback) {
-          setIsReadingQuestion(false);
-          setTimerStarted(true);
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          handleTimeUp();
+          return 0;
         }
-      },
-    });
-    commands.push({
-      keywords: ['répète', 'répéter', 'redis', 'encore', 'répète la question'],
-      action: async () => {
-        cancelReadingRef.current = true;
-        await audioServiceRef.stopSpeaking();
-        setIsReadingQuestion(true);
-        setTimerStarted(false);
-        setQuestionStartTime(Date.now()); // Reset timestamp pour le scoring
-        await speakQuestion();
-      },
-    });
-
-    // Suivant - toujours prioritaire, même pendant le feedback
-    commands.push({
-      keywords: ['suivant', 'suivante', 'continue', 'continuer', 'next', 'passe'],
-      action: async () => {
-        cancelReadingRef.current = true;
-        await audioServiceRef.stopSpeaking();
-        if (showFeedback) return handleNextQuestion();
-        if (isReadingQuestion) {
-          // Arrêter la lecture et démarrer le timer
-          setIsReadingQuestion(false);
-          setTimerStarted(true);
-        }
-      },
-    });
-
-    // Réponses disponibles même pendant la lecture de la question
-    if (currentQuestion && !showFeedback) {
-      currentQuestion.options.forEach((option) => {
-        const optionTextLower = option.text.toLowerCase().trim();
-        const keywords = [
-          optionTextLower, // Texte complet de l'option (priorité)
-          ...optionTextLower.split(' ').filter(w => w.length > 3), // Mots significatifs
-        ];
-
-        // Ajouter les variantes phonétiques si disponibles
-        if (option.phoneticKeywords) {
-          keywords.push(...option.phoneticKeywords);
-        }
-        
-        // Ajouter variantes numériques pour les chiffres
-        const numberWords: Record<string, string> = {
-          'un': '1', 'une': '1',
-          'deux': '2',
-          'trois': '3',
-          'quatre': '4',
-          'cinq': '5',
-          'six': '6',
-          'sept': '7',
-          'huit': '8',
-          'neuf': '9',
-          'dix': '10'
-        };
-        
-        // Si l'option est un chiffre, ajouter sa version en lettres
-        if (numberWords[option.id.toLowerCase()]) {
-          keywords.push(option.id.toLowerCase());
-        }
-        // Si le texte contient un chiffre écrit, ajouter le chiffre
-        Object.entries(numberWords).forEach(([word, number]) => {
-          if (optionTextLower.includes(word) || option.id === number) {
-            keywords.push(word);
-          }
-        });
-        
-        commands.push({ keywords, action: async () => {
-          // Interrompre l'audio avant de répondre
-          cancelReadingRef.current = true;
-          await audioServiceRef.stopSpeaking();
-          handleAnswer(option.id);
-        }});
+        return prev - 1;
       });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerStarted, timeLeft]);
+
+  // Parler la question au changement
+  useEffect(() => {
+    if (currentQuestion && !isLoading) {
+      speakQuestion();
     }
+  }, [currentQuestionIndex, isLoading]);
 
-    return commands;
-  }, [currentQuestion, showFeedback, isReadingQuestion]);
-
-  const { isListening } = useVoiceCommands(voiceCommands, voiceEnabled);
-
-  const initializeQuiz = async (cat: Category) => {
+  const initializeQuiz = async () => {
     try {
-      // Réinitialiser le quiz avant de démarrer
-      useQuizStore.getState().resetQuiz();
-      
+      console.log('🎮 === QUIZ INITIALIZATION START ===');
+      console.log('Category:', category, 'Level:', level);
+
+      // Charger les questions
       const storage = createStorageService();
-      let allQuestions: Question[] = [];
+      let questions: Question[] = [];
 
-      // Si catégorie "mixte", charger toutes les questions
-      if (cat === 'mixte') {
-        const categories: Exclude<Category, 'mixte'>[] = [
-          'arts-litterature',
-          'divertissement',
-          'sport',
-          'histoire-politique',
-          'geographie-economie',
-          'gastronomie',
-          'sciences-technologie',
-          'sociales',
-          'people',
-        ];
-        for (const category of categories) {
-          const questions = await storage.getQuestionsByCategory(category);
-          allQuestions = [...allQuestions, ...questions];
-        }
+      if (category === 'mixte') {
+        console.log('📚 Loading mixed questions...');
+        const allQuestions = await storage.getQuestions();
+        questions = allQuestions.sort(() => Math.random() - 0.5).slice(0, 10);
       } else {
-        allQuestions = await storage.getQuestionsByCategory(cat);
+        console.log(`📚 Loading questions for ${category}, level ${level}...`);
+        questions = await storage.getQuestionsByCategory(
+          category as Exclude<Category, 'mixte'>,
+          parseInt(level || '1') as Level
+        );
       }
-      
-      // Filtrer temporairement les questions avec symboles chimiques (sci_002)
-      allQuestions = allQuestions.filter(q => q.id !== 'sci_002');
-      
-      // Sélectionner 5 questions aléatoires
-      const selectedQuestions = allQuestions
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 5);
 
+      console.log(`✅ Loaded ${questions.length} questions`);
+
+      if (questions.length === 0) {
+        console.error('❌ No questions found');
+        navigate('/');
+        return;
+      }
+
+      setQuizQuestions(questions);
+
+      // Créer et démarrer la session
       const session: QuizSession = {
-        id: `session_${Date.now()}`,
-        category: cat,
-        level: quizLevel,
+        id: `quiz_${Date.now()}`,
+        category: category as Category,
+        level: parseInt(level || '1') as Level,
+        questions: questions,
         startedAt: new Date(),
-        questions: selectedQuestions,
-        currentQuestionIndex: 0,
         score: 0,
-        maxScore: selectedQuestions.reduce((sum, q) => sum + q.points, 0),
+        maxScore: questions.reduce((sum, q) => sum + (q.points || 20), 0),
         isComplete: false,
       };
 
       startSession(session);
-      setStartTime(new Date());
+      console.log('✅ Quiz session started');
+
+      // Vérifier disponibilité audio
+      const audioAvailable = await audioServiceRef.current.isAvailable();
+      setAudioEnabled(audioAvailable);
+      console.log('🔊 Audio available:', audioAvailable);
+
+      // Initialiser reconnaissance vocale
+      try {
+        console.log('🎤 Initializing speech recognition...');
+
+        // FORCER l'arrêt complet avant de démarrer
+        console.log('🛑 Forcing complete stop of any existing recognition...');
+        try {
+          await speechServiceRef.current.stopListening();
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (e) {
+          console.log('No recognition to stop');
+        }
+
+        // Vérifier disponibilité
+        const speechAvailable = await speechServiceRef.current.isAvailable();
+        console.log('🎤 Speech recognition available:', speechAvailable);
+
+        if (speechAvailable) {
+          // ⬇️ HANDLER DYNAMIQUE pour reconnaissance vocale
+          speechServiceRef.current.onResult((result) => {
+            if (!result.isFinal) return;
+
+            const transcript = result.transcript.toLowerCase().trim();
+            console.log('🎤 Quiz voice input:', transcript);
+            addVoiceLog('heard', transcript);
+
+            console.log(
+              '🔍 Current question:',
+              currentQuestionRef.current?.question
+            );
+            console.log('🔍 Selected answer:', selectedAnswer);
+            console.log(
+              '🔍 Current question options:',
+              currentQuestionRef.current?.options.map((o) => o.text)
+            );
+
+            // ⬇️ Chercher une commande correspondante (dynamique)
+            const currentCommands = generateVoiceCommands();
+            console.log('🔍 Generated commands count:', currentCommands.length);
+            console.log(
+              '🔍 Command keywords:',
+              currentCommands.map((c) => c.keywords).flat()
+            );
+
+            const matchedCommand = currentCommands.find((cmd) =>
+              cmd.keywords.some((keyword) =>
+                transcript.includes(keyword.toLowerCase())
+              )
+            );
+
+            if (matchedCommand) {
+              console.log('✅ Quiz command matched!');
+              addVoiceLog('action', `Action: ${transcript}`);
+              matchedCommand.action();
+            } else {
+              console.log('⚠️ No quiz command matched:', transcript);
+              addVoiceLog('heard', `Pas de commande: ${transcript}`);
+            }
+          });
+
+          await speechServiceRef.current.startListening({ language: 'fr-FR' });
+          console.log('✅ Speech recognition started');
+        }
+      } catch (error) {
+        console.error('❌ Error starting speech recognition:', error);
+      }
+
+      setIsLoading(false);
+      console.log('✅ === QUIZ INITIALIZATION END ===\n');
     } catch (error) {
-      console.error('Erreur chargement quiz:', error);
+      console.error('❌ Error initializing quiz:', error);
+      navigate('/');
+    }
+  };
+
+  // ⬇️ FONCTION pour générer les commandes dynamiquement
+  const generateVoiceCommands = () => {
+    const commands = [
+      {
+        keywords: [
+          'suivante',
+          'suivant',
+          'next',
+          'passe',
+          'skip',
+          'question suivante',
+        ],
+        action: () => {
+          console.log('🎤 === VOICE COMMAND: NEXT QUESTION ===');
+          if (selectedAnswerRef.current) {
+            handleNextQuestionRef.current?.();
+          }
+        },
+      },
+      {
+        keywords: ['retour', 'retour menu', 'menu', 'accueil', 'home'],
+        action: () => {
+          console.log('🎤 === VOICE COMMAND: GO HOME ===');
+          handleGoHomeRef.current?.();
+        },
+      },
+    ];
+
+    // ⬇️ Ajouter les réponses de la question actuelle
+    const question = currentQuestionRef.current; // ⬅️ Utiliser la ref
+    if (question && !selectedAnswerRef.current) {
+      console.log(
+        '🎯 Generating answer commands for:',
+        question.options.map((o) => o.text)
+      );
+      question.options.forEach((option) => {
+        commands.push({
+          keywords: [option.text.toLowerCase()],
+          action: () => {
+            console.log(`🎤 === VOICE COMMAND: ANSWER ${option.text} ===`);
+            handleAnswerRef.current?.(option.text);
+          },
+        });
+      });
+    }
+
+    return commands;
+  };
+
+  const cleanup = async () => {
+    console.log('🧹 Cleaning up quiz...');
+    cancelReadingRef.current = true;
+
+    // Annuler le timer d'auto-advance
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
+    try {
+      await audioServiceRef.current.stopSpeaking();
+      await speechServiceRef.current.stopListening();
+    } catch (error) {
+      console.error('Error during cleanup:', error);
     }
   };
 
   const speakQuestion = async () => {
-    if (!currentQuestion) return;
+    if (!currentQuestion || !audioEnabled) return;
 
     try {
-      // Réinitialiser le flag d'annulation
+      console.log('🔊 === SPEAK QUESTION START ===');
+
+      // STOP complet avant de commencer
+      console.log('🛑 Stopping any previous speech...');
+      cancelReadingRef.current = true;
+      await audioServiceRef.current.stopSpeaking();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      console.log('🔊 Starting new question speech');
+      setIsReadingQuestion(true);
       cancelReadingRef.current = false;
-      
-      // Arrêter toute lecture en cours
-      await audioServiceRef.stopSpeaking();
-      
-      await audioServiceRef.speak(currentQuestion.question);
-      
-      // Vérifier si annulé
+
+      // Question
       if (cancelReadingRef.current) {
-        setIsReadingQuestion(false);
-        setTimerStarted(true);
+        console.log('⚠️ Reading cancelled (question)');
         return;
       }
-      
-      // Lire les options après une pause
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
+      console.log('📣 Speaking question:', currentQuestion.question);
+      await audioServiceRef.current.speak(currentQuestion.question, {
+        rate: 0.75,
+      });
+
+      // Pause
+      if (cancelReadingRef.current) {
+        console.log('⚠️ Reading cancelled (pause)');
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // Options
+      console.log('📣 Speaking options...');
       for (const option of currentQuestion.options) {
-        // Vérifier si annulé avant chaque option
         if (cancelReadingRef.current) {
-          setIsReadingQuestion(false);
-          setTimerStarted(true);
+          console.log('⚠️ Reading cancelled (option)');
           return;
         }
-        
-        // Utiliser phoneticText si disponible pour épeler les symboles
-        const textToSpeak = option.phoneticText || option.text;
-        await audioServiceRef.speak(textToSpeak);
-        await new Promise(resolve => setTimeout(resolve, 600));
+        const textToSpeak = option.text;
+        console.log('📣 Speaking option:', textToSpeak);
+        await audioServiceRef.current.speak(textToSpeak, { rate: 0.75 });
+        if (cancelReadingRef.current) {
+          console.log('⚠️ Reading cancelled (between options)');
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 600));
       }
-      
-      // Démarrer le timer APRÈS la lecture complète
+
+      // Démarrer le timer
       setIsReadingQuestion(false);
       setTimerStarted(true);
+      console.log('✅ === SPEAK QUESTION END ===');
     } catch (error) {
-      // Ignorer les erreurs "canceled" (interruption volontaire)
-      if (error instanceof Error && !error.message.includes('canceled')) {
-        console.error('Erreur lecture audio:', error);
-      }
-      // Démarrer le timer même en cas d'interruption
+      console.error('❌ Erreur lecture question:', error);
       setIsReadingQuestion(false);
       setTimerStarted(true);
-    }
-  };
-
-  const calculateScore = (timeElapsed: number, basePoints: number, timeLimit: number): number => {
-    const multiplier = timeElapsed <= 5000 ? 3 : 
-                      timeElapsed <= (timeLimit - 5) * 1000 ? 2 : 1;
-    return basePoints * multiplier;
-  };
-
-  const handleAnswer = async (optionId: string) => {
-    if (!currentQuestion || showFeedback) return;
-
-    setSelectedOptionId(optionId);
-    const option = currentQuestion.options.find(o => o.id === optionId);
-    if (!option) return;
-
-    const timeElapsed = Date.now() - questionStartTime;
-    const basePoints = currentQuestion.points;
-    const earnedPoints = option.isCorrect ? calculateScore(timeElapsed, basePoints, currentQuestion.timeLimit) : 0;
-
-    const answer: UserAnswer = {
-      questionId: currentQuestion.id,
-      selectedOptionId: optionId,
-      isCorrect: option.isCorrect,
-      timeSpent: timeElapsed,
-      answeredAt: new Date(),
-    };
-
-    submitAnswer(answer);
-
-    // Son de réussite/échec
-    playFeedbackSound(option.isCorrect);
-
-    // Mettre à jour le score avec le multiplicateur
-    if (option.isCorrect) {
-      useQuizStore.setState(state => ({
-        currentSession: state.currentSession ? {
-          ...state.currentSession,
-          score: state.currentSession.score + earnedPoints
-        } : null
-      }));
-    }
-
-    // Feedback audio
-    if (audioEnabled) {
-      try {
-        await audioServiceRef.speak(option.isCorrect ? 'Bonne réponse.' : 'Mauvaise réponse.');
-        
-        // Pause après "bonne/mauvaise réponse" avant l'explication
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        if (currentQuestion.explanation) {
-          await audioServiceRef.speak(currentQuestion.explanation);
-        }
-        
-        // Annoncer et passer automatiquement à la question suivante
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await audioServiceRef.speak('Question suivante');
-        
-        await new Promise(resolve => setTimeout(resolve, 800));
-        handleNextQuestion();
-      } catch (error) {
-        // Ignorer les erreurs d'interruption
-        if (error instanceof Error && !error.message.includes('canceled')) {
-          console.error('Erreur feedback audio:', error);
-        }
-      }
-    }
-
-    // Mettre à jour les stats utilisateur
-    if (currentQuestion && progress) {
-      const questionCategory = currentQuestion.category as Category;
-      updateCategoryStats(questionCategory, option.isCorrect, quizLevel);
-      if (option.isCorrect) {
-        updateXP(earnedPoints);
-      }
-    }
-  };
-
-  const handleTimeout = async () => {
-    if (!currentQuestion) return;
-
-    const answer: UserAnswer = {
-      questionId: currentQuestion.id,
-      selectedOptionId: '',
-      isCorrect: false,
-      timeSpent: currentQuestion.timeLimit * 1000,
-      answeredAt: new Date(),
-    };
-
-    submitAnswer(answer);
-
-    if (audioEnabled) {
-      try {
-        await audioServiceRef.speak('Temps écoulé');
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        // Trouver et annoncer la bonne réponse
-        const correctOption = currentQuestion.options.find(opt => opt.isCorrect);
-        if (correctOption) {
-          await audioServiceRef.speak(`La bonne réponse était ${correctOption.phoneticText || correctOption.text}`);
-        }
-        
-        // Lire l'explication
-        if (currentQuestion.explanation) {
-          await new Promise(resolve => setTimeout(resolve, 800));
-          await audioServiceRef.speak(currentQuestion.explanation);
-        }
-        
-        // Annoncer et passer automatiquement à la question suivante
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await audioServiceRef.speak('Question suivante');
-        
-        await new Promise(resolve => setTimeout(resolve, 800));
-        handleNextQuestion();
-      } catch (error) {
-        console.error('Erreur lors de la lecture du timeout:', error);
-        handleNextQuestion();
-      }
-    } else {
-      // Si pas d'audio, passer quand même à la question suivante
-      setTimeout(() => handleNextQuestion(), 2000);
-    }
-  };
-
-  const playFeedbackSound = (isCorrect: boolean) => {
-    if (!audioContextRef.current) return;
-
-    const audioContext = audioContextRef.current;
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    if (isCorrect) {
-      // Son de succès (mélodie montante)
-      oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // Do
-      oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1); // Mi
-      oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2); // Sol
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.4);
-    } else {
-      // Son d'échec (note descendante)
-      oscillator.frequency.setValueAtTime(392.00, audioContext.currentTime); // Sol
-      oscillator.frequency.setValueAtTime(349.23, audioContext.currentTime + 0.15); // Fa
-      oscillator.type = 'sawtooth';
-      gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
     }
   };
 
   const handleNextQuestion = async () => {
-    // 1. D'abord annuler toute lecture en cours
+    console.log('\n🎯 === HANDLE NEXT QUESTION START ===');
+
+    // Annuler l'auto-advance timer
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
+    // STOP complet avant de changer de question
+    console.log('🛑 Cancelling current reading...');
     cancelReadingRef.current = true;
-    
-    // 2. Attendre que l'audio soit vraiment stoppé
-    await audioServiceRef.stopSpeaking();
-    
-    // 3. Petit délai pour s'assurer que tout est nettoyé
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // 4. Réinitialiser tous les états à zéro
-    setSelectedOptionId(null);
-    setStartTime(new Date());
-    setQuestionStartTime(Date.now());
+    setIsReadingQuestion(true);
     setTimerStarted(false);
-    setIsReadingQuestion(false);
-    cancelReadingRef.current = false;
-    
-    // 5. Passer à la question suivante (déclenchera le useEffect qui relancera la lecture)
-    nextQuestion();
+
+    // Arrêter l'audio
+    console.log('🛑 Stopping audio service...');
+    await audioServiceRef.current.stopSpeaking();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // CRITIQUE : Arrêter et redémarrer la reconnaissance pour reset le buffer
+    console.log('🔄 Restarting speech recognition to clear buffer...');
+    try {
+      await speechServiceRef.current.stopListening();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await speechServiceRef.current.startListening({ language: 'fr-FR' });
+      console.log('✅ Speech recognition restarted successfully');
+    } catch (error) {
+      console.error('❌ Error restarting speech recognition:', error);
+    }
+
+    const nextIndex = currentQuestionIndex + 1;
+    console.log(
+      `📊 Current index: ${currentQuestionIndex}, Next: ${nextIndex}, Total: ${quizQuestions.length}`
+    );
+
+    if (nextIndex >= quizQuestions.length) {
+      // Quiz terminé
+      console.log('🏁 Quiz completed!');
+      await audioServiceRef.current.speak('Quiz terminé ! Bravo !');
+      setTimeout(() => {
+        endSession();
+        navigate('/results');
+      }, 2000);
+      return;
+    }
+
+    console.log('➡️ Moving to next question...');
+    setCurrentQuestionIndex(nextIndex);
+    setSelectedAnswer(null);
+    setTimeLeft(30);
+
+    // ⬇️ NE PAS appeler speakQuestion ici, le useEffect le fera
+    console.log('✅ === HANDLE NEXT QUESTION END (useEffect will speak) ===\n');
   };
 
-  if (!currentSession || !currentQuestion) {
+  // Mettre à jour la ref
+  useEffect(() => {
+    handleNextQuestionRef.current = handleNextQuestion;
+  });
+
+  const handleAnswer = async (answer: string) => {
+    if (selectedAnswerRef.current || !currentQuestionRef.current) return;
+
+    const currentQuestion = currentQuestionRef.current;
+
+    console.log('\n💬 === HANDLE ANSWER START ===');
+    console.log('Selected answer:', answer);
+    console.log(
+      'Correct answer:',
+      currentQuestion.options.find((o) => o.isCorrect)?.text
+    );
+
+    // Annuler l'auto-advance timer s'il existe
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
+    // Stop audio pendant traitement réponse
+    console.log('🛑 Stopping audio before feedback...');
+    cancelReadingRef.current = true;
+    await audioServiceRef.current.stopSpeaking();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    setTimerStarted(false);
+    setSelectedAnswer(answer);
+
+    const correctOption = currentQuestion.options.find((o) => o.isCorrect);
+    const correct =
+      answer.toLowerCase().trim() === correctOption?.text.toLowerCase().trim();
+    const points = correct ? currentQuestion.points || 20 : 0;
+
+    console.log(
+      `Result: ${correct ? '✅ Correct' : '❌ Incorrect'}, Points: ${points}`
+    );
+
+    submitAnswer({
+      questionId: currentQuestion.id,
+      selectedAnswer: answer,
+      isCorrect: correct,
+      timeSpent: (currentQuestion.timeLimit - timeLeft) * 1000,
+    });
+
+    // Feedback audio
+    console.log('📣 Speaking feedback...');
+    if (correct) {
+      await audioServiceRef.current.speak('Bravo ! Bonne réponse.', {
+        rate: 0.75,
+      });
+    } else {
+      await audioServiceRef.current.speak(
+        `Incorrect. La bonne réponse était ${correctOption?.text}`,
+        { rate: 0.75 }
+      );
+    }
+
+    // Explication si elle existe
+    if (currentQuestion.explanation) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await audioServiceRef.current.speak(currentQuestion.explanation, {
+        rate: 0.75,
+      });
+    }
+
+    // Annoncer "Question suivante"
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await audioServiceRef.current.speak('Question suivante', { rate: 0.75 });
+
+    console.log('✅ === HANDLE ANSWER END ===\n');
+
+    // Auto-avancer après 500ms
+    console.log('⏱️ Auto-advance scheduled in 0.5s...');
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      console.log('⏱️ Auto-advance triggered');
+      handleNextQuestionRef.current?.();
+    }, 500);
+  };
+
+  // Mettre à jour la ref
+  useEffect(() => {
+    handleAnswerRef.current = handleAnswer;
+  });
+
+  const handleTimeUp = async () => {
+    if (selectedAnswer) return;
+
+    console.log('⏰ TIME UP!');
+
+    // Annuler l'auto-advance timer s'il existe
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
+    setTimerStarted(false);
+    setSelectedAnswer('timeout');
+
+    if (!currentQuestion) return;
+
+    submitAnswer({
+      questionId: currentQuestion.id,
+      selectedAnswer: '',
+      isCorrect: false,
+      timeSpent: currentQuestion.timeLimit * 1000,
+    });
+
+    const correctOption = currentQuestion.options.find((o) => o.isCorrect);
+
+    if (audioEnabled) {
+      await audioServiceRef.current.speak(
+        `Temps écoulé ! La bonne réponse était ${correctOption?.text}`,
+        { rate: 0.75 }
+      );
+
+      // Explication
+      if (currentQuestion.explanation) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await audioServiceRef.current.speak(currentQuestion.explanation, {
+          rate: 0.75,
+        });
+      }
+
+      // Annoncer "Question suivante"
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await audioServiceRef.current.speak('Question suivante', { rate: 0.75 });
+    }
+
+    // Auto-avancer après 500ms
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      handleNextQuestionRef.current?.();
+    }, 500);
+  };
+
+  const handleGoHome = async () => {
+    console.log('🏠 Going back to home...');
+    await cleanup();
+    resetQuiz();
+    navigate('/');
+  };
+
+  // Mettre à jour la ref
+  useEffect(() => {
+    handleGoHomeRef.current = handleGoHome;
+  });
+
+  const toggleAudio = () => {
+    setAudioEnabled(!audioEnabled);
+    if (!audioEnabled) {
+      speakQuestion();
+    } else {
+      cancelReadingRef.current = true;
+      audioServiceRef.current.stopSpeaking();
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Chargement du quiz...</p>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-primary/5 to-accent/5">
+        <div className="text-center">
+          <div className="mb-4 text-4xl">⏳</div>
+          <p className="text-lg text-muted-foreground">Chargement du quiz...</p>
+        </div>
       </div>
     );
   }
 
-  const progressPercentage = ((currentQuestionIndex + 1) / currentSession.questions.length) * 100;
-  const timePercentage = (timeRemaining / currentQuestion.timeLimit) * 100;
+  if (!currentQuestion) {
+    return null;
+  }
+
+  const quizProgress =
+    ((currentQuestionIndex + 1) / quizQuestions.length) * 100;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-12">
       <div className="mx-auto max-w-3xl">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={handleGoHome}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Quitter
+          </Button>
+
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { audioServiceRef.stopSpeaking().catch(() => {}); navigate('/'); }}
-            >
-              <Home className="h-4 w-4 mr-1" />
-              <span className="text-xs">Retour</span>
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              {currentQuestionIndex + 1}/{currentSession.questions.length}
-            </span>
-            <Progress value={progressPercentage} className="w-20" />
-          </div>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setVoiceEnabled(!voiceEnabled)}
-              className={isListening ? 'text-success' : ''}
-            >
-              {voiceEnabled && isListening ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAudioEnabled(!audioEnabled)}
-            >
-              {audioEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            {selectedAnswer && (
+              <Button variant="ghost" size="sm" onClick={handleNextQuestion}>
+                <SkipForward className="mr-2 h-4 w-4" />
+                Suivante
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={toggleAudio}>
+              {audioEnabled ? (
+                <Volume2 className="h-4 w-4 text-success" />
+              ) : (
+                <VolumeX className="h-4 w-4 text-muted-foreground" />
+              )}
             </Button>
           </div>
         </div>
 
-        {/* Timer */}
-        <Card className="mb-4 p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Timer className={`h-4 w-4 ${timeRemaining <= 5 ? 'text-destructive animate-pulse' : 'text-primary'}`} />
-              <span className={`font-mono text-xl font-bold ${timeRemaining <= 5 ? 'text-destructive' : ''}`}>
-                {isReadingQuestion ? '⏸️' : `${timeRemaining}s`}
+        {/* Progression */}
+        <Card className="mb-4 p-4">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">
+              Question {currentQuestionIndex + 1} / {quizQuestions.length}
+            </span>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {timeLeft}s
               </span>
-              {isReadingQuestion && (
-                <span className="text-xs text-muted-foreground">Lecture...</span>
-              )}
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-muted-foreground">Score</p>
-              <p className="text-lg font-bold text-primary">{currentSession.score}</p>
+              <span className="flex items-center gap-1 text-primary">
+                <Award className="h-3 w-3" />
+                {currentSession?.score || 0}
+              </span>
             </div>
           </div>
-          <Progress 
-            value={isReadingQuestion ? 100 : timePercentage} 
-            className={`mt-2 ${timeRemaining <= 5 ? 'bg-destructive/20' : ''}`}
-          />
+          <Progress value={quizProgress} className="h-2" />
         </Card>
 
         {/* Question */}
-        <Card className="mb-4 p-5 text-center shadow-lg">
-          <div className="mb-3">
-            <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-              {currentQuestion.type.toUpperCase()}
-            </span>
-            <span className="ml-2 rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
-              {currentQuestion.points} pts
-            </span>
-          </div>
-          <h2 className="text-lg font-bold leading-tight md:text-2xl">
+        <Card className="mb-4 p-6">
+          <h2 className="mb-6 text-center text-xl font-bold leading-tight">
             {currentQuestion.question}
           </h2>
+
+          {/* Options */}
+          <div className="grid gap-3">
+            {currentQuestion.options.map((option, index) => {
+              const isSelected = selectedAnswer === option.text;
+              const isCorrect = option.isCorrect;
+              const showResult = selectedAnswer !== null;
+
+              return (
+                <Button
+                  key={index}
+                  variant={
+                    showResult
+                      ? isCorrect
+                        ? 'default'
+                        : isSelected
+                          ? 'destructive'
+                          : 'outline'
+                      : 'outline'
+                  }
+                  className={`h-auto min-h-[3rem] w-full justify-start px-4 py-3 text-left text-base ${
+                    !showResult ? 'hover:border-primary hover:bg-primary/5' : ''
+                  }`}
+                  onClick={() => !selectedAnswer && handleAnswer(option.text)}
+                  disabled={selectedAnswer !== null}
+                >
+                  <span className="mr-3 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold">
+                    {['A', 'B', 'C', 'D'][index]}
+                  </span>
+                  <span className="flex-1">{option.text}</span>
+                  {showResult && isCorrect && <span className="ml-2">✓</span>}
+                  {showResult && isSelected && !isCorrect && (
+                    <span className="ml-2">✗</span>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
         </Card>
 
-        {/* Options */}
-        <div className="mb-4 grid gap-3 grid-cols-2">
-          {currentQuestion.options.map((option) => {
-            const isSelected = selectedOptionId === option.id;
-            const showCorrect = showFeedback && option.isCorrect;
-            const showWrong = showFeedback && isSelected && !option.isCorrect;
-
-            return (
-              <Button
-                key={option.id}
-                variant={showCorrect ? 'default' : showWrong ? 'destructive' : 'outline'}
-                className={`h-auto min-h-[70px] whitespace-normal p-4 text-sm transition-all ${
-                  showCorrect ? 'bg-gradient-success shadow-success' : ''
-                } ${showWrong ? 'opacity-50' : ''}`}
-                onClick={() => handleAnswer(option.id)}
-                disabled={showFeedback}
-              >
-                <div className="flex w-full items-center justify-between gap-2">
-                  <span className="flex-1 text-left leading-tight">{option.text}</span>
-                  {showCorrect && <Check className="h-5 w-5 shrink-0" />}
-                  {showWrong && <X className="h-5 w-5 shrink-0" />}
-                </div>
-              </Button>
-            );
-          })}
-        </div>
-
-        {/* Feedback */}
-        {showFeedback && (
-          <Card className={`mb-4 p-4 ${lastAnswerCorrect ? 'border-success' : 'border-destructive'}`}>
-            <div className="mb-3 text-center">
-              <p className={`text-lg font-bold ${lastAnswerCorrect ? 'text-success' : 'text-destructive'}`}>
-                {lastAnswerCorrect ? '✅ Bravo !' : '❌ Pas tout à fait'}
-              </p>
-            </div>
-            {currentQuestion.explanation && (
-              <p className="text-center text-sm text-muted-foreground mb-4">
-                {currentQuestion.explanation}
-              </p>
-            )}
-            <Button
-              variant="default"
-              className="w-full"
-              onClick={handleNextQuestion}
-            >
-              Question suivante
-            </Button>
+        {/* Explication */}
+        {selectedAnswer && currentQuestion.explanation && (
+          <Card className="p-4 border-primary/20 bg-primary/5">
+            <p className="text-sm text-muted-foreground">
+              💡 {currentQuestion.explanation}
+            </p>
           </Card>
         )}
       </div>

@@ -37,9 +37,13 @@ export class IndexedDBService implements IStorageService {
 
         // Store questions avec indexes
         if (!db.objectStoreNames.contains(STORES.questions)) {
-          const questionStore = db.createObjectStore(STORES.questions, { keyPath: 'id' });
+          const questionStore = db.createObjectStore(STORES.questions, {
+            keyPath: 'id',
+          });
           questionStore.createIndex('category', 'category', { unique: false });
-          questionStore.createIndex('difficulty', 'difficulty', { unique: false });
+          questionStore.createIndex('difficulty', 'difficulty', {
+            unique: false,
+          });
           questionStore.createIndex('type', 'type', { unique: false });
         }
 
@@ -50,11 +54,13 @@ export class IndexedDBService implements IStorageService {
 
         // Store résultats de quiz
         if (!db.objectStoreNames.contains(STORES.quizResults)) {
-          const resultsStore = db.createObjectStore(STORES.quizResults, { 
+          const resultsStore = db.createObjectStore(STORES.quizResults, {
             keyPath: 'sessionId',
-            autoIncrement: false 
+            autoIncrement: false,
           });
-          resultsStore.createIndex('completedAt', 'completedAt', { unique: false });
+          resultsStore.createIndex('completedAt', 'completedAt', {
+            unique: false,
+          });
           resultsStore.createIndex('category', 'category', { unique: false });
         }
 
@@ -79,7 +85,7 @@ export class IndexedDBService implements IStorageService {
     const transaction = this.db!.transaction([STORES.questions], 'readwrite');
     const store = transaction.objectStore(STORES.questions);
 
-    const promises = questions.map(question => {
+    const promises = questions.map((question) => {
       return new Promise<void>((resolve, reject) => {
         const request = store.put(question);
         request.onsuccess = () => resolve();
@@ -130,7 +136,10 @@ export class IndexedDBService implements IStorageService {
 
   async saveUserProgress(progress: UserProgress): Promise<void> {
     this.ensureDB();
-    const transaction = this.db!.transaction([STORES.userProgress], 'readwrite');
+    const transaction = this.db!.transaction(
+      [STORES.userProgress],
+      'readwrite'
+    );
     const store = transaction.objectStore(STORES.userProgress);
 
     return new Promise((resolve, reject) => {
@@ -219,11 +228,16 @@ export class IndexedDBService implements IStorageService {
   async clear(): Promise<void> {
     this.ensureDB();
     const transaction = this.db!.transaction(
-      [STORES.questions, STORES.userProgress, STORES.quizResults, STORES.settings],
+      [
+        STORES.questions,
+        STORES.userProgress,
+        STORES.quizResults,
+        STORES.settings,
+      ],
       'readwrite'
     );
 
-    const promises = Object.values(STORES).map(storeName => {
+    const promises = Object.values(STORES).map((storeName) => {
       return new Promise<void>((resolve, reject) => {
         const request = transaction.objectStore(storeName).clear();
         request.onsuccess = () => resolve();

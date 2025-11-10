@@ -66,7 +66,7 @@ const Results = () => {
   const scorePercentage = Math.round((currentSession.score / currentSession.maxScore) * 100);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-12">
       <div className="mx-auto max-w-2xl">
         {/* Trophy Header */}
         <div className="mb-6 text-center">

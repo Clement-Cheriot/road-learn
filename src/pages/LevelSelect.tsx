@@ -2,7 +2,7 @@
  * Page de sélection de niveau pour une catégorie
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react'; // ⬅️ AJOUTER useRef
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Lock, Star, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,27 +17,30 @@ const LevelSelect = () => {
   const { progress } = useUserStore();
   const [audioEnabled, setAudioEnabled] = useState(true);
 
+  // ⬇️ CRÉER LE SERVICE UNE SEULE FOIS
+  const audioServiceRef = useRef(createAudioService());
+
   useEffect(() => {
     checkAudio();
   }, []);
 
   const checkAudio = async () => {
-    const audio = createAudioService();
-    const available = await audio.isAvailable();
+    // ⬇️ UTILISER LE REF
+    const available = await audioServiceRef.current.isAvailable();
     setAudioEnabled(available);
   };
 
   const getCategoryLabel = (cat: string): string => {
     const labels: Record<string, string> = {
       'arts-litterature': 'Arts & Littérature',
-      'divertissement': 'Divertissement',
-      'sport': 'Sport',
+      divertissement: 'Divertissement',
+      sport: 'Sport',
       'histoire-politique': 'Histoire & Politique',
       'geographie-economie': 'Géographie & Économie',
-      'gastronomie': 'Gastronomie',
+      gastronomie: 'Gastronomie',
       'sciences-technologie': 'Sciences & Technologie',
-      'sociales': 'Sociales',
-      'people': 'People',
+      sociales: 'Sociales',
+      people: 'People',
     };
     return labels[cat] || cat;
   };
@@ -45,14 +48,14 @@ const LevelSelect = () => {
   const getCategoryEmoji = (cat: string): string => {
     const emojis: Record<string, string> = {
       'arts-litterature': '🎨',
-      'divertissement': '🎬',
-      'sport': '⚽',
+      divertissement: '🎬',
+      sport: '⚽',
       'histoire-politique': '🏛️',
       'geographie-economie': '🌍',
-      'gastronomie': '🍽️',
+      gastronomie: '🍽️',
       'sciences-technologie': '🔬',
-      'sociales': '👥',
-      'people': '⭐',
+      sociales: '👥',
+      people: '⭐',
     };
     return emojis[cat] || '❓';
   };
@@ -60,7 +63,11 @@ const LevelSelect = () => {
   const isLevelUnlocked = (level: Level): boolean => {
     if (!progress || !category) return false;
     if (category === 'mixte') return true;
-    return progress.unlockedLevels[category as Exclude<Category, 'mixte'>]?.includes(level) || false;
+    return (
+      progress.unlockedLevels[category as Exclude<Category, 'mixte'>]?.includes(
+        level
+      ) || false
+    );
   };
 
   const isLevelPremium = (level: Level): boolean => {
@@ -70,7 +77,7 @@ const LevelSelect = () => {
   const canPlayLevel = (level: Level): boolean => {
     const unlocked = isLevelUnlocked(level);
     const isPremium = isLevelPremium(level);
-    
+
     if (!isPremium) return unlocked;
     return unlocked && (progress?.hasPremium || false);
   };
@@ -79,8 +86,8 @@ const LevelSelect = () => {
     if (!canPlayLevel(level)) return;
 
     if (audioEnabled) {
-      const audio = createAudioService();
-      await audio.speak(`Démarrage du niveau ${level}`);
+      // ⬇️ UTILISER LE REF
+      await audioServiceRef.current.speak(`Démarrage du niveau ${level}`);
     }
     navigate(`/quiz/${category}/${level}`);
   };
@@ -112,7 +119,7 @@ const LevelSelect = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-12">
       <div className="mx-auto max-w-4xl">
         {/* Header */}
         <div className="mb-6">
@@ -125,15 +132,13 @@ const LevelSelect = () => {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
-          
+
           <div className="text-center">
             <div className="mb-3 text-5xl">{getCategoryEmoji(category)}</div>
             <h1 className="mb-2 text-2xl font-bold">
               {getCategoryLabel(category)}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Choisis ton niveau
-            </p>
+            <p className="text-sm text-muted-foreground">Choisis ton niveau</p>
           </div>
         </div>
 
@@ -169,7 +174,7 @@ const LevelSelect = () => {
                         {getLevelDifficulty(level)}
                       </p>
                     </div>
-                    
+
                     {!unlocked ? (
                       <Lock className="h-5 w-5 text-muted-foreground" />
                     ) : !canPlay ? (
@@ -186,9 +191,14 @@ const LevelSelect = () => {
                   {progress && category !== 'mixte' && (
                     <div className="mb-3 rounded-lg bg-muted/50 p-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Progression</span>
+                        <span className="text-muted-foreground">
+                          Progression
+                        </span>
                         <span className="font-bold text-primary">
-                          {progress.categoryStats[category as Exclude<Category, 'mixte'>]?.accuracy.toFixed(0)}%
+                          {progress.categoryStats[
+                            category as Exclude<Category, 'mixte'>
+                          ]?.accuracy.toFixed(0)}
+                          %
                         </span>
                       </div>
                     </div>
@@ -200,7 +210,12 @@ const LevelSelect = () => {
                       Commencer
                     </Button>
                   ) : !unlocked ? (
-                    <Button variant="outline" size="sm" className="w-full" disabled>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled
+                    >
                       <Lock className="mr-2 h-3 w-3" />
                       Verrouillé
                     </Button>
@@ -229,7 +244,9 @@ const LevelSelect = () => {
           <Card className="mt-6 border-primary/20 bg-gradient-primary/10 p-4">
             <div className="text-center">
               <Trophy className="mx-auto mb-3 h-10 w-10 text-primary" />
-              <h3 className="mb-2 text-lg font-bold">Débloquez tous les niveaux !</h3>
+              <h3 className="mb-2 text-lg font-bold">
+                Débloquez tous les niveaux !
+              </h3>
               <p className="mb-3 text-xs text-muted-foreground">
                 Niveaux 3, 4 et 5 avec Premium
               </p>
