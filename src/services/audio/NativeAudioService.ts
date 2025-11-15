@@ -1,64 +1,114 @@
 /**
- * Service audio natif via @capacitor-community/text-to-speech
+ * Service audio natif - VERSION SIMPLIFIÉE
+ * 
+ * CHANGEMENTS :
+ * - Voix "Thomas" hardcodée (pas de sélection)
+ * - Plus de VoiceManager ni de page de test
+ * - Configuration minimale pour la production
  */
 
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { IAudioService, TTSOptions } from './AudioService.interface';
-import { AUDIO_CONFIG } from '@/config/audio.config';
 
 export class NativeAudioService implements IAudioService {
   private isSpeaking: boolean = false;
+  private isInitialized = false;
 
+  // ⬇️ VOIX HARDCODÉE - Thomas (voix française iOS)
+  private readonly VOICE_URI = 'com.apple.voice.compact.fr-FR.Thomas';
+  private readonly VOICE_LANG = 'fr-FR';
+
+  /**
+   * Initialise le service (à appeler au démarrage de l'app)
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      console.log('⚠️ NativeAudioService already initialized');
+      return;
+    }
+    
+    // Test rapide de la voix
+    try {
+      await TextToSpeech.speak({
+        text: ' ',
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 0.01,
+        category: 'playAndRecord',
+        voice: this.VOICE_URI,
+        lang: this.VOICE_LANG,
+      });
+      await TextToSpeech.stop();
+      
+      this.isInitialized = true;
+      console.log('✅ NativeAudioService initialized with Thomas voice');
+    } catch (error) {
+      console.error('❌ NativeAudioService init error:', error);
+      this.isInitialized = true; // Continue quand même
+    }
+  }
+
+  /**
+   * Parler avec la voix Thomas
+   */
   async speak(text: string, options?: TTSOptions): Promise<void> {
     try {
-      // Arrêter complètement l'audio précédent
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+      
+      // Arrêter toute lecture en cours
       await this.stopSpeaking();
-      
-      // Attendre que l'arrêt soit effectif
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      this.isSpeaking = true;
-      
-      const config = {
-        ...AUDIO_CONFIG.carMode,
-        ...options,
-      };
-      
-await TextToSpeech.speak({
-  text,
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-  rate: config.rate || 0.75,
-  pitch: config.pitch || 1.0,
-  volume: config.volume || 1.0,
-  category: 'playAndRecord',
-  // ⬇️ Utilise un INDEX numérique pour tester les voix
-  // voice: 0,  // Voix par défaut
-  // voice: 1,  // Première voix alternative
-  voice: 1,  // Deuxième voix alternative ⬅️ ESSAYE 0, 1, 2, 3, 4
-    lang: 'fr-FR',
-});
-      
+      this.isSpeaking = true;
+      console.log('🔊 Speaking:', text.substring(0, 50) + '...');
+
+      await TextToSpeech.speak({
+        text,
+        rate: options?.rate || 1.0,
+        pitch: options?.pitch || 1.0,
+        volume: options?.volume || 1.0,
+        category: 'playAndRecord',
+        voice: this.VOICE_URI,
+        lang: this.VOICE_LANG,
+      });
+
       this.isSpeaking = false;
+      console.log('✅ Speech completed');
       
     } catch (error) {
       this.isSpeaking = false;
-      console.error('Erreur TTS natif:', error);
+      console.error('❌ TTS error:', error);
       throw error;
     }
   }
 
+  /**
+   * Arrêter la lecture en cours
+   */
   async stopSpeaking(): Promise<void> {
     try {
       await TextToSpeech.stop();
       this.isSpeaking = false;
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     } catch (error) {
       this.isSpeaking = false;
-      console.error('Erreur stop TTS:', error);
+      console.error('❌ Stop TTS error:', error);
     }
   }
 
+  /**
+   * Vérifier si le TTS est disponible
+   */
   async isAvailable(): Promise<boolean> {
-    return true;
+    return true; // Toujours disponible sur iOS natif
+  }
+
+  /**
+   * Obtenir l'état de lecture
+   */
+  getIsSpeaking(): boolean {
+    return this.isSpeaking;
   }
 }

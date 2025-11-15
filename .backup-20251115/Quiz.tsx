@@ -1,9 +1,5 @@
 /**
  * Page Quiz - Mode vocal hands-free avec AudioManager centralisé
- * 
- * CHANGEMENTS :
- * - Arrête complètement le GlobalVoiceController au montage
- * - Redémarre l'écoute globale au démontage (retour menu)
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -12,6 +8,8 @@ import {
   ArrowLeft,
   Clock,
   Award,
+  Volume2,
+  VolumeX,
   SkipForward,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,7 +18,7 @@ import { Progress } from '@/components/ui/progress';
 import { useQuizStore } from '@/stores/useQuizStore';
 import { createStorageService } from '@/services/storage/StorageServiceFactory';
 import { audioManager } from '@/services/AudioManager';
-import { getRandomMessage, AUDIO_CONFIG, applyPhoneticPronunciation } from '@/config/audio.config';
+import { getRandomMessage, AUDIO_CONFIG } from '@/config/audio.config';
 import type {
   Question,
   Category,
@@ -57,29 +55,11 @@ const Quiz = () => {
     selectedAnswerRef.current = selectedAnswer;
   }, [selectedAnswer]);
 
-  // ⬇️ NOUVEAU : Isolation audio du Quiz + Initialisation
+  // Initialisation
   useEffect(() => {
-    console.log('🎮 Quiz: Taking control of audio...');
-    
-    // Stopper complètement l'écoute globale (GlobalVoiceController)
-    const stopGlobalListening = async () => {
-      try {
-        await audioManager.stopListening();
-        console.log('🛑 Global listening stopped');
-      } catch (error) {
-        console.error('❌ Error stopping global listening:', error);
-      }
-    };
-
-    stopGlobalListening();
     initializeQuiz();
-
-    // Cleanup : redémarrer l'écoute globale au retour menu
     return () => {
-      console.log('🧹 Quiz cleanup: Stopping audio...');
       cleanup();
-      console.log('🧹 Quiz cleanup: Restarting global listening...');
-      audioManager.startListening();
     };
   }, []);
 
@@ -116,10 +96,8 @@ const Quiz = () => {
       let questions: Question[] = [];
 
       if (category === 'mixte') {
-        console.log('📚 Loading mixed questions...');
         const allQuestions = await storage.getQuestions();
         questions = allQuestions.sort(() => Math.random() - 0.5).slice(0, 10);
-        console.log('✅ Loaded', questions.length, 'questions');
       } else {
         questions = await storage.getQuestionsByCategory(
           category as Exclude<Category, 'mixte'>,
@@ -128,7 +106,6 @@ const Quiz = () => {
       }
 
       if (questions.length === 0) {
-        console.error('❌ No questions found');
         navigate('/');
         return;
       }
@@ -148,11 +125,12 @@ const Quiz = () => {
       };
 
       startSession(session);
-      console.log('✅ Quiz session started');
-      
       setIsLoading(false);
 
-      // ⬇️ NOUVEAU : Handler commandes vocales AVANT de parler
+      // Démarrer l'écoute (AudioManager gère tout)
+      await audioManager.startListening();
+
+      // Handler commandes vocales
       audioManager.onSpeech((transcript) => {
         handleVoiceCommand(transcript);
       });
@@ -168,45 +146,25 @@ const Quiz = () => {
     if (!currentQuestion) return;
 
     try {
-      console.log('🔊 === SPEAK QUESTION START ===');
-      
-      // ⬇️ NOUVEAU : Désactiver pause/resume auto pendant lecture question
-      // (le STT est déjà arrêté, pas besoin de le pauser)
+      // AudioManager gère automatiquement pause/resume STT
       
       // Question
-      const questionText = applyPhoneticPronunciation(currentQuestion.question);
-      await audioManager.speak(questionText, { rate: 0.85, skipPauseResume: true });
+      await audioManager.speak(currentQuestion.question, { rate: 0.85 });
       await new Promise(r => setTimeout(r, 800));
 
-      // Options (SANS "Voici les options")
+      // Options
+      await audioManager.speak('Voici les options', { rate: 0.9 });
+      
       for (let i = 0; i < currentQuestion.options.length; i++) {
-        await new Promise(r => setTimeout(r, 400)); // Pause réduite
-        const letter = String.fromCharCode(65 + i); // A, B, C, D
-        const optionText = applyPhoneticPronunciation(currentQuestion.options[i].text);
-        
-        console.log(`📣 Speaking option: ${letter}... ${currentQuestion.options[i].text}`);
-        
-        // Format : "A." avec pause puis la réponse
-        // Le point évite "A Majuscule"
-        await audioManager.speak(`${letter}.`, { rate: 0.9, skipPauseResume: true });
-        await new Promise(r => setTimeout(r, 200)); // Pause réduite à 200ms
-        await audioManager.speak(optionText, { rate: 0.85, skipPauseResume: true });
+        await new Promise(r => setTimeout(r, 300));
+        await audioManager.speak(
+          `Option ${String.fromCharCode(65 + i)}. ${currentQuestion.options[i].text}`,
+          { rate: 0.85 }
+        );
       }
 
-      // ⬇️ NOUVEAU : Démarrer le STT APRÈS avoir parlé
-      console.log('🎮 Starting STT after speaking question...');
-      await new Promise(r => setTimeout(r, 500));
-      
-      // ⬇️ CRITIQUE : Ré-enregistrer le callback AVANT startListening
-      audioManager.onSpeech((transcript) => {
-        handleVoiceCommand(transcript);
-      });
-      
-      await audioManager.startListening();
-
       setTimerStarted(true);
-      console.log('✅ === SPEAK QUESTION END ===');
-      console.log('✅ Question read, STT started');
+      console.log('✅ Question read, STT automatically resumed');
     } catch (error) {
       console.error('❌ Error speaking question:', error);
     }
@@ -217,12 +175,7 @@ const Quiz = () => {
 
     const question = currentQuestionRef.current;
 
-    console.log('✅ ANSWER SELECTED - Stopping quiz interaction');
-
-    // ⬇️ CRITIQUE : Arrêter le STT avant de parler
     setTimerStarted(false);
-    await audioManager.stopListening();
-    
     setSelectedAnswer(answer);
 
     const correctOption = question.options.find(o => o.isCorrect);
@@ -240,20 +193,16 @@ const Quiz = () => {
       const message = getRandomMessage(AUDIO_CONFIG.messages.correct);
       await audioManager.speak(message, { rate: 1.1 });
     } else {
-      // Message incorrect SANS redondance
       const message = getRandomMessage(AUDIO_CONFIG.messages.incorrect);
       await audioManager.speak(message, { rate: 0.9 });
       await new Promise(r => setTimeout(r, 300));
-      // Juste la réponse, sans répéter "La bonne réponse était"
-      const correctText = applyPhoneticPronunciation(correctOption?.text || '');
-      await audioManager.speak(correctText, { rate: 0.85 });
+      await audioManager.speak(correctOption?.text || '', { rate: 0.85 });
     }
 
     // Explication
     if (question.explanation) {
       await new Promise(r => setTimeout(r, 500));
-      const explanationText = applyPhoneticPronunciation(question.explanation);
-      await audioManager.speak(explanationText, { rate: 0.85 });
+      await audioManager.speak(question.explanation, { rate: 0.85 });
     }
 
     // Annoncer "Question suivante"
@@ -287,12 +236,7 @@ const Quiz = () => {
   const handleTimeUp = async () => {
     if (selectedAnswer) return;
 
-    console.log('⏱️ TIME UP - Stopping quiz interaction');
-
-    // ⬇️ CRITIQUE : Arrêter le STT avant de parler
     setTimerStarted(false);
-    await audioManager.stopListening();
-    
     setSelectedAnswer('timeout');
 
     if (!currentQuestion) return;
@@ -305,17 +249,15 @@ const Quiz = () => {
     });
 
     const correctOption = currentQuestion.options.find(o => o.isCorrect);
-    const correctText = applyPhoneticPronunciation(correctOption?.text || '');
 
     await audioManager.speak(
-      `Temps écoulé ! La bonne réponse était ${correctText}`,
+      `Temps écoulé ! La bonne réponse était ${correctOption?.text}`,
       { rate: 0.85 }
     );
 
     if (currentQuestion.explanation) {
       await new Promise(r => setTimeout(r, 500));
-      const explanationText = applyPhoneticPronunciation(currentQuestion.explanation);
-      await audioManager.speak(explanationText, { rate: 0.85 });
+      await audioManager.speak(currentQuestion.explanation, { rate: 0.85 });
     }
 
     await new Promise(r => setTimeout(r, 500));
@@ -333,24 +275,20 @@ const Quiz = () => {
   };
 
   const cleanup = async () => {
-    console.log('🧹 Quiz cleanup: Stopping audio...');
     await audioManager.stopSpeaking();
     await audioManager.stopListening();
   };
 
   const handleVoiceCommand = (transcript: string) => {
     const text = transcript.toLowerCase().trim();
-    console.log('🎤 Quiz heard:', text);
     
     // Commandes navigation
     if (text.includes('retour') || text.includes('menu')) {
-      console.log('✅ Command: Retour menu');
       handleGoHome();
       return;
     }
     
     if (text.includes('suivant') || text.includes('next')) {
-      console.log('✅ Command: Question suivante');
       if (selectedAnswer) {
         handleNextQuestion();
       }
@@ -359,21 +297,12 @@ const Quiz = () => {
 
     // Réponses (si pas encore répondu)
     if (!selectedAnswer && currentQuestion) {
-      console.log('🔍 Looking for answer in:', text);
-      console.log('🔍 Available options:', currentQuestion.options.map(o => o.text.toLowerCase()));
-      
-      const matchedOption = currentQuestion.options.find(opt => {
-        const optionText = opt.text.toLowerCase();
-        const matched = text.includes(optionText);
-        console.log(`🔍 Checking "${optionText}" in "${text}": ${matched}`);
-        return matched;
-      });
+      const matchedOption = currentQuestion.options.find(opt =>
+        text.includes(opt.text.toLowerCase())
+      );
       
       if (matchedOption) {
-        console.log('✅ Answer detected:', matchedOption.text);
         handleAnswer(matchedOption.text);
-      } else {
-        console.log('❌ No matching answer found');
       }
     }
   };

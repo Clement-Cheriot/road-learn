@@ -1,15 +1,16 @@
 import { Capacitor } from '@capacitor/core';
-import { IAudioService } from './AudioService.interface';
 import { NativeAudioService } from './NativeAudioService';
 import { WebAudioService } from './WebAudioService';
+import type { IAudioService } from './AudioService.interface';
 
 export function createAudioService(): IAudioService {
-  // Détection automatique de la plateforme
-  if (Capacitor.isNativePlatform()) {
-    //  console.log('🎵 Using Native TTS (iOS/Android)');
+  const platform = Capacitor.getPlatform();
+
+  if (platform === 'ios' || platform === 'android') {
+    console.log(`🔊 Using Native Audio Service (${platform})`);
     return new NativeAudioService();
-  } else {
-    // console.log('🎵 Using Web Speech API');
-    return new WebAudioService();
   }
+
+  console.log('🔊 Using Web Audio Service (Browser)');
+  return new WebAudioService();
 }

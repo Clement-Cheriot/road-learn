@@ -286,7 +286,9 @@ const Index = () => {
             {audioEnabled ? 'Audio activé' : 'Audio désactivé'}
           </span>
         </div>
-
+        <Button onClick={() => (window.location.href = '/vad-test')}>
+          🎤 Test VAD
+        </Button>
         {/* Quiz Mixte */}
         <div className="mb-6">
           <Card

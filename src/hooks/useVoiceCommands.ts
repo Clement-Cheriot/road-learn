@@ -8,7 +8,7 @@ interface VoiceCommand {
   action: () => void | Promise<void>;
 }
 
-// ⬇️ SINGLETON global
+// Singleton global
 let globalSpeechService: ISpeechService | null = null;
 let isGlobalListening = false;
 
@@ -17,7 +17,7 @@ export function useVoiceCommands(
   enabled: boolean = true
 ) {
   const commandsRef = useRef(commands);
-  const hasStartedRef = useRef(false); // ⬅️ AJOUTER : éviter redémarrages
+  const hasStartedRef = useRef(false);
 
   // Mettre à jour les commandes sans re-démarrer
   useEffect(() => {
@@ -30,13 +30,13 @@ export function useVoiceCommands(
       return;
     }
 
-    // ⬇️ PROTECTION : démarrer une seule fois par instance
+    // Protection : démarrer une seule fois par instance
     if (hasStartedRef.current) {
       console.log('⚠️ useVoiceCommands: already started, skipping');
       return;
     }
 
-    // ⬇️ Créer le service une seule fois
+    // Créer le service une seule fois
     if (!globalSpeechService) {
       console.log('🎤 Creating global speech service');
       globalSpeechService = createSpeechService();
@@ -45,7 +45,7 @@ export function useVoiceCommands(
     const startListening = async () => {
       if (isGlobalListening) {
         console.log('⚠️ Speech already listening globally');
-        hasStartedRef.current = true; // ⬅️ Marquer comme démarré
+        hasStartedRef.current = true;
         return;
       }
 
@@ -56,7 +56,7 @@ export function useVoiceCommands(
           if (!result.isFinal) return;
 
           const transcript = result.transcript.toLowerCase().trim();
-          console.log('🎤 Voice input:', transcript);
+          console.log('🎤 Transcrit:', transcript);
           addVoiceLog('heard', transcript);
 
           // Chercher une commande correspondante
@@ -67,9 +67,11 @@ export function useVoiceCommands(
           );
 
           if (matchedCommand) {
-            console.log('✅ Command matched:', matchedCommand.keywords[0]); // ⬅️ LOGGER la commande
+            console.log('✅ Command matched:', matchedCommand.keywords[0]);
             addVoiceLog('action', `Commande: ${transcript}`);
             matchedCommand.action();
+
+            // Redémarrage différé pour permettre la navigation
             setTimeout(async () => {
               console.log('🔄 Delayed restart to allow navigation');
               try {
@@ -80,9 +82,8 @@ export function useVoiceCommands(
               } catch (e) {
                 console.error('Error restarting:', e);
               }
-            }, 1000); // ⬅️ 1 seconde de délai
+            }, 1000);
           } else {
-            // ⬇️ AJOUTER : Logger quand aucune commande ne correspond
             console.log('⚠️ No command matched');
             addVoiceLog('heard', `Pas de commande: ${transcript}`);
           }
@@ -95,11 +96,11 @@ export function useVoiceCommands(
 
         await globalSpeechService!.startListening({ language: 'fr-FR' });
         isGlobalListening = true;
-        hasStartedRef.current = true; // ⬅️ Marquer comme démarré
+        hasStartedRef.current = true;
         console.log('✅ Global listening started');
       } catch (error) {
         console.error('❌ Error starting listening:', error);
-        hasStartedRef.current = true; // ⬅️ Même en cas d'erreur
+        hasStartedRef.current = true;
       }
     };
 
@@ -108,7 +109,28 @@ export function useVoiceCommands(
     // Cleanup : NE PAS arrêter, juste marquer comme inactif
     return () => {
       console.log('🧹 useVoiceCommands cleanup (keeping service alive)');
-      hasStartedRef.current = false; // ⬅️ Reset pour permettre redémarrage
+      hasStartedRef.current = false;
     };
-  }, [enabled]); // ⬅️ ENLEVER 'commands' des dépendances !
+  }, [enabled]);
+
+  // Fonction pour désactiver/activer manuellement le micro (mode talkie-walkie)
+  const toggleListening = async (shouldListen: boolean) => {
+    if (!globalSpeechService) return;
+
+    try {
+      if (shouldListen && !isGlobalListening) {
+        console.log('🎤 Activation manuelle du micro');
+        await globalSpeechService.startListening({ language: 'fr-FR' });
+        isGlobalListening = true;
+      } else if (!shouldListen && isGlobalListening) {
+        console.log('🔇 Désactivation manuelle du micro');
+        await globalSpeechService.stopListening();
+        isGlobalListening = false;
+      }
+    } catch (error) {
+      console.error('❌ Erreur toggle listening:', error);
+    }
+  };
+
+  return { toggleListening };
 }

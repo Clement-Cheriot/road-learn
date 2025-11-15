@@ -10,4 +10,7 @@ export interface IAudioService {
   speak(text: string, options?: TTSOptions): Promise<void>;
   stopSpeaking(): Promise<void>;
   isAvailable(): Promise<boolean>;
+  
+  // Méthodes optionnelles
+  getIsSpeaking?(): boolean;
 }
