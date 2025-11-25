@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 import { createStorageService } from '@/services/storage/StorageServiceFactory';
-import { createAudioService } from '@/services/audio/AudioServiceFactory';
+import { audioManager } from '@/services/AudioManager';
 import { useUserStore } from '@/stores/useUserStore';
 import questionsData from '@/data/questions.json';
 import type { Category, UserProgress } from '@/types/quiz.types';
@@ -29,9 +29,16 @@ const Index = () => {
       const storage = createStorageService();
       await storage.init();
 
-      // Charger les questions en IndexedDB (première fois uniquement)
+      // Charger les questions en IndexedDB
+      // FORCE RELOAD: on recharge toujours pour avoir isCorrect
       const existingQuestions = await storage.getQuestions();
-      if (existingQuestions.length === 0) {
+      
+      // Vérifier si les questions ont isCorrect (migration)
+      const needsReload = existingQuestions.length === 0 || 
+        !existingQuestions[0]?.options?.[0]?.hasOwnProperty('isCorrect');
+      
+      if (needsReload) {
+        console.log('🔄 Reloading questions (missing isCorrect)...');
         // Transformer les questions JSON au bon format
         const transformedQuestions = questionsData.map((q: any) => {
           const correctOption = q.options.find((opt: any) => opt.isCorrect);
@@ -41,6 +48,7 @@ const Index = () => {
             options: q.options.map((opt: any) => ({
               id: opt.id,
               text: opt.text,
+              isCorrect: opt.isCorrect,  // IMPORTANT: garder isCorrect !
               phoneticText: opt.phoneticText,
               phoneticKeywords: opt.phoneticKeywords,
             })),
@@ -71,10 +79,8 @@ const Index = () => {
       await storage.saveUserProgress(userProgress);
       setProgress(userProgress);
 
-      // Vérifier disponibilité audio
-      const audio = createAudioService();
-      const available = await audio.isAvailable();
-      setAudioEnabled(available);
+      // Vérifier disponibilité audio (AudioManager gère tout)
+      setAudioEnabled(true); // On suppose que c'est disponible, GlobalVoiceController gère l'init
 
       setIsInitializing(false);
     } catch (error) {
@@ -179,7 +185,10 @@ const Index = () => {
     };
   };
 
-  const selectCategory = (category: Category) => {
+  const selectCategory = async (category: Category) => {
+    // Stopper l'audio avant de naviguer
+    await audioManager.stopSpeaking();
+    
     if (category === 'mixte') {
       navigate(`/quiz/${category}/1`);
     } else {
@@ -286,7 +295,9 @@ const Index = () => {
             {audioEnabled ? 'Audio activé' : 'Audio désactivé'}
           </span>
         </div>
-
+        <Button onClick={() => (window.location.href = '/vad-test')}>
+          🎤 Test VAD
+        </Button>
         {/* Quiz Mixte */}
         <div className="mb-6">
           <Card

@@ -1,7 +1,7 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
 platform :ios, '14.0'
-use_frameworks!
+use_frameworks! :linkage => :dynamic
 
 # workaround to avoid Xcode caching of Pods that requires
 # Product -> Clean Build Folder after new Cordova plugins installed
@@ -13,10 +13,15 @@ def capacitor_pods
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCommunitySpeechRecognition', :path => '../../node_modules/@capacitor-community/speech-recognition'
   pod 'CapacitorCommunityTextToSpeech', :path => '../../node_modules/@capacitor-community/text-to-speech'
+  pod 'CapacitorEchoCancellation', :path => '../../node_modules/capacitor-echo-cancellation'
 end
 
 target 'App' do
   capacitor_pods
+  
+  # Sherpa-ONNX inclut son propre ONNX Runtime
+  # Ne pas ajouter d'autres pods onnxruntime ici
+  
   # Add your Pods here
 end
 

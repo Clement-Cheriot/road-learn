@@ -1,148 +1,137 @@
-import { useEffect, useMemo, useRef } from 'react';
+/**
+ * GlobalVoiceController - Commandes vocales globales via AudioManager
+ * 
+ * BUILD 4 :
+ * - Un seul useEffect pour tout gérer
+ * - Écoute démarrée APRÈS le message de bienvenue
+ * - Callback enregistré une seule fois
+ */
+
+import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSettingsStore } from '@/stores/useSettingsStore';
-import { useVoiceCommands } from '@/hooks/useVoiceCommands';
-import { createAudioService } from '@/services/audio/AudioServiceFactory';
-import { requestMicrophonePermission } from '@/services/audio/MicrophonePermission';
-
-// ⬇️ SINGLETON pour éviter multiple démarrages
-let globalVoiceControllerInitialized = false;
+import { audioManager } from '@/services/AudioManager';
+import { applyPhoneticPronunciation } from '@/config/audio.config';
 
 /**
  * Contrôleur vocal global
  * - Active l'écoute micro en mode Audio
- * - Commandes globales: démarrer un quiz, retour menu, stop lecture
+ * - Commandes globales: démarrer un quiz, retour menu
+ * - S'auto-désactive dans les pages qui gèrent leur propre audio (Quiz)
  */
 const GlobalVoiceController = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const audioMode = useSettingsStore((s) => s.audioMode);
-  const hasAnnouncedRef = useRef(false);
-  const audioServiceRef = useRef(createAudioService());
+  const hasInitializedRef = useRef(false);
+  const isQuizPageRef = useRef(false);
 
-  // ⬇️ PROTECTION : un seul GlobalVoiceController à la fois
+  // ⬇️ Tracker si on est sur Quiz (sans déclencher re-render)
   useEffect(() => {
-    if (globalVoiceControllerInitialized) {
-      console.log('⚠️ GlobalVoiceController already initialized, skipping');
+    isQuizPageRef.current = location.pathname.includes('/quiz/');
+  }, [location.pathname]);
+
+  // ⬇️ UN SEUL useEffect pour tout gérer
+  useEffect(() => {
+    if (!audioMode) return;
+
+    // Désactiver sur la page Quiz (elle gère son propre audio)
+    if (isQuizPageRef.current) {
+      console.log('🚨 Quiz actif, GlobalVoiceController désactivé');
       return;
     }
-    globalVoiceControllerInitialized = true;
-    console.log('✅ GlobalVoiceController initialized');
 
-    return () => {
-      console.log('🧹 GlobalVoiceController cleanup');
-      globalVoiceControllerInitialized = false;
-    };
-  }, []);
-
-  // Demande de permission microphone et annonce vocale
-  useEffect(() => {
-    const announce = async () => {
-      if (!audioMode || hasAnnouncedRef.current) return;
-      hasAnnouncedRef.current = true;
-
-      // Demander la permission microphone avant tout
-      const micGranted = await requestMicrophonePermission();
-      if (!micGranted) {
-        console.error(
-          '❌ Permission microphone refusée - mode audio désactivé'
-        );
-        return;
-      }
-
-      try {
-        await audioServiceRef.current.speak(
-          "Mode Audio activé. Commencer le Quiz Mixte ou dites une catégorie pour commencer. Dites 'retour menu' à tout moment."
-        );
-      } catch {}
-    };
-    announce();
-  }, [audioMode]);
-
-  // Nettoyage à la destruction
-  useEffect(() => {
-    return () => {
-      audioServiceRef.current.stopSpeaking().catch(() => {});
-    };
-  }, []);
-
-  const commands = useMemo(() => {
-    if (!audioMode) return [];
-
-    const isOnQuizPage = location.pathname.includes('/quiz/');
-
-    const startMixte = () => {
-      console.log('🚀 === STARTING QUIZ MIXTE ===');
-      console.log('Navigating to: /quiz/mixte/1');
-      console.log('Current location before:', window.location.pathname);
-      navigate('/quiz/mixte/1');
-      console.log('Navigate called');
-      setTimeout(() => {
-        console.log('Current location after 500ms:', window.location.pathname);
-      }, 500);
-      setTimeout(() => {
-        console.log('Current location after 1000ms:', window.location.pathname);
-      }, 1000);
-    };
-    const startHist = () => navigate('/level/histoire-politique');
-    const startGeo = () => navigate('/level/geographie-economie');
-    const startSci = () => navigate('/level/sciences-technologie');
-
-    const cmds = [
-      {
-        keywords: ['retour', 'menu', 'accueil', 'retour menu'],
-        action: () => navigate('/'),
-      },
-      {
-        keywords: ['stop lecture', 'arrête la lecture', 'stop', 'silence'],
-        action: async () => {
-          try {
-            await audioServiceRef.current.stopSpeaking();
-          } catch {}
-        },
-      },
-    ];
-
-    // ⬇️ N'ajouter les commandes de navigation QUE si on n'est pas sur la page Quiz
-    if (!isOnQuizPage) {
-      cmds.push(
-        {
-          keywords: [
-            'commencer le quiz mixte',
-            'quiz mixte',
-            'quizz mixte',
-            'commencer mixte',
-            'lancer mixte',
-            'démarrer mixte',
-            'mixte',
-            'mix',
-          ],
-          action: startMixte,
-        },
-        {
-          keywords: ['commencer histoire', 'quiz histoire', 'histoire'],
-          action: startHist,
-        },
-        {
-          keywords: [
-            'commencer géographie',
-            'quiz géographie',
-            'géographie',
-            'geographie',
-          ],
-          action: startGeo,
-        },
-        {
-          keywords: ['commencer sciences', 'quiz sciences', 'sciences'],
-          action: startSci,
-        }
-      );
+    // Initialisation unique - NE PAS réinitialiser si déjà fait
+    if (hasInitializedRef.current) {
+      console.log('✅ GlobalVoiceController already initialized, skipping');
+      return;
     }
+    hasInitializedRef.current = true;
 
-    return cmds;
-  }, [audioMode, navigate, location.pathname]);
+    const init = async () => {
+      try {
+        await audioManager.initialize();
+        
+        // ⬇️ 1. PARLER D'ABORD (pendant que STT est OFF)
+        await audioManager.speak(
+          applyPhoneticPronunciation("Mode Audio activé ! Commencez le Couize Mixte ou dites une catégorie pour démarrer. C'est parti !")
+        );
 
-  useVoiceCommands(commands, audioMode);
+        // ⬇️ 2. DÉFINIR LE CALLBACK (une seule fois)
+        const handleVoiceCommand = (transcript: string) => {
+          const text = transcript.toLowerCase().trim();
+          console.log('🎤 GlobalVoice heard:', text);
+
+          // Commande: Retour menu
+          if (text.includes('retour') || text.includes('menu') || text.includes('accueil')) {
+            console.log('✅ Command: Retour menu');
+            navigate('/');
+            return;
+          }
+
+          // Commande: Stop lecture
+          if (text.includes('stop') || text.includes('silence') || text.includes('arrête')) {
+            console.log('✅ Command: Stop lecture');
+            audioManager.stopSpeaking();
+            return;
+          }
+
+          // Commande: Quiz Mixte
+          if (text.includes('mixte') || text.includes('mix') || text.includes('commencer le quiz')) {
+            console.log('✅ Command: Quiz Mixte');
+            audioManager.stopSpeaking();  // Couper l'audio avant de naviguer
+            navigate('/quiz/mixte/1');
+            return;
+          }
+
+          // Commande: Histoire
+          if (text.includes('histoire')) {
+            console.log('✅ Command: Quiz Histoire');
+            audioManager.stopSpeaking();
+            navigate('/level/histoire-politique');
+            return;
+          }
+
+          // Commande: Géographie
+          if (text.includes('géographie') || text.includes('geographie')) {
+            console.log('✅ Command: Quiz Géographie');
+            audioManager.stopSpeaking();
+            navigate('/level/geographie-economie');
+            return;
+          }
+
+          // Commande: Sciences
+          if (text.includes('sciences')) {
+            console.log('✅ Command: Quiz Sciences');
+            audioManager.stopSpeaking();
+            navigate('/level/sciences-technologie');
+            return;
+          }
+        };
+
+        audioManager.onSpeech(handleVoiceCommand);
+
+        // ⬇️ 3. DÉMARRER L'ÉCOUTE (après avoir parlé)
+        await audioManager.startListening();
+
+        console.log('✅ GlobalVoiceController initialized via AudioManager');
+      } catch (error) {
+        console.error('❌ GlobalVoiceController init error:', error);
+      }
+    };
+
+    init();
+
+    // Cleanup
+    return () => {
+      if (isQuizPageRef.current) {
+        console.log('🧹 Cleaning up for Quiz page');
+        audioManager.stopListening();
+        hasInitializedRef.current = false;
+      }
+      // Sinon, ne rien faire (garde l'init pour la navigation normale)
+    };
+  }, [audioMode]);  // Seulement audioMode comme dépendance
 
   return null;
 };

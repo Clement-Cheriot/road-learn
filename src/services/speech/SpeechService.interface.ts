@@ -1,47 +1,22 @@
 /**
- * Interface commune pour reconnaissance vocale (Speech Recognition)
+ * Interface pour les services de reconnaissance vocale
  */
-
-export interface SpeechRecognitionOptions {
-  language?: string;
-  continuous?: boolean;
-  interimResults?: boolean;
-}
 
 export interface SpeechRecognitionResult {
   transcript: string;
-  confidence: number;
   isFinal: boolean;
+  confidence?: number;
+}
+
+export interface SpeechRecognitionError {
+  message: string;
+  code?: string;
 }
 
 export interface ISpeechService {
-  /**
-   * Démarre l'écoute vocale
-   */
-  startListening(options?: SpeechRecognitionOptions): Promise<void>;
-  
-  /**
-   * Arrête l'écoute vocale
-   */
+  startListening(options?: { language?: string }): Promise<void>;
   stopListening(): Promise<void>;
-  
-  /**
-   * Vérifie si le service est disponible
-   */
-  isAvailable(): Promise<boolean>;
-  
-  /**
-   * Définit le callback pour les résultats
-   */
   onResult(callback: (result: SpeechRecognitionResult) => void): void;
-  
-  /**
-   * Définit le callback pour les erreurs
-   */
-  onError(callback: (error: Error) => void): void;
-  
-  /**
-   * Vérifie si l'écoute est active
-   */
-  isListening(): boolean;
+  onError(callback: (error: SpeechRecognitionError) => void): void;
+  isAvailable(): Promise<boolean>;
 }

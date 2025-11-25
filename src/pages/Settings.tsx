@@ -19,7 +19,11 @@ const Settings = () => {
   const [audioEnabled, setAudioEnabled] = useState(true);
 
   const handleClearData = async () => {
-    if (!confirm('Êtes-vous sûr de vouloir effacer toutes les données ? Cette action est irréversible.')) {
+    if (
+      !confirm(
+        'Êtes-vous sûr de vouloir effacer toutes les données ? Cette action est irréversible.'
+      )
+    ) {
       return;
     }
 
@@ -27,7 +31,7 @@ const Settings = () => {
       const storage = createStorageService();
       await storage.clear();
       resetUser();
-      
+
       toast({
         title: 'Données effacées',
         description: 'Toutes les données ont été supprimées avec succès.',
@@ -37,7 +41,7 @@ const Settings = () => {
     } catch (error) {
       toast({
         title: 'Erreur',
-        description: 'Impossible d\'effacer les données.',
+        description: "Impossible d'effacer les données.",
         variant: 'destructive',
       });
     }
@@ -73,10 +77,7 @@ const Settings = () => {
                 Lire les questions
               </p>
             </div>
-            <Switch
-              checked={audioEnabled}
-              onCheckedChange={setAudioEnabled}
-            />
+            <Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} />
           </div>
         </Card>
 
@@ -89,16 +90,14 @@ const Settings = () => {
           <p className="mb-3 text-xs text-muted-foreground">
             Efface toutes les données stockées localement.
           </p>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleClearData}
-          >
+          <Button variant="destructive" size="sm" onClick={handleClearData}>
             <Trash2 className="mr-2 h-3 w-3" />
             <span className="text-xs">Effacer les données</span>
           </Button>
         </Card>
-
+        <Button onClick={() => navigate('/voice-settings')} className="w-full">
+          🎤 Voix & Vitesse
+        </Button>
         {/* Info technique */}
         <Card className="p-4">
           <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">

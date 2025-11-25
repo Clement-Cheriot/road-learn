@@ -2,13 +2,13 @@
  * Page de sélection de niveau pour une catégorie
  */
 
-import { useEffect, useState, useRef } from 'react'; // ⬅️ AJOUTER useRef
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Lock, Star, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useUserStore } from '@/stores/useUserStore';
-import { createAudioService } from '@/services/audio/AudioServiceFactory';
+import { audioManager } from '@/services/AudioManager';
 import type { Category, Level } from '@/types/quiz.types';
 
 const LevelSelect = () => {
@@ -17,18 +17,10 @@ const LevelSelect = () => {
   const { progress } = useUserStore();
   const [audioEnabled, setAudioEnabled] = useState(true);
 
-  // ⬇️ CRÉER LE SERVICE UNE SEULE FOIS
-  const audioServiceRef = useRef(createAudioService());
-
   useEffect(() => {
-    checkAudio();
+    // AudioManager est déjà initialisé par GlobalVoiceController
+    setAudioEnabled(true);
   }, []);
-
-  const checkAudio = async () => {
-    // ⬇️ UTILISER LE REF
-    const available = await audioServiceRef.current.isAvailable();
-    setAudioEnabled(available);
-  };
 
   const getCategoryLabel = (cat: string): string => {
     const labels: Record<string, string> = {

@@ -13,12 +13,6 @@ const config: CapacitorConfig = {
       backgroundColor: "#0EA5E9",
       showSpinner: false,
     },
-    // ⬇️ AJOUTER : Config audio
-    Audio: {
-      echoCancellation: true,        // Annulation d'écho
-      noiseSuppression: true,        // Suppression bruit
-      autoGainControl: true,         // Contrôle gain auto
-    },
   },
 };
 
