@@ -6,14 +6,21 @@
  * - Gère automatiquement pause STT pendant TTS
  * - API simple pour les pages : speak(), listen(), stop()
  * 
- * CORRECTIONS BUILD 3 :
- * - Ignorer les résultats STT quand isListening = false
- * - Protection contre double stop
- * - Délai avant restart pour éviter "Ongoing speech recognition"
+ * UTILISE SHERPA TTS (Piper voice offline)
  */
 
-import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { registerPlugin } from '@capacitor/core';
+
+// Enregistrer le plugin SherpaTTS
+interface SherpaTTSPlugin {
+  initialize(): Promise<{ success: boolean; sampleRate: number }>;
+  speak(options: { text: string; speed?: number; speakerId?: number }): Promise<{ success: boolean }>;
+  stop(): Promise<{ success: boolean }>;
+  isInitialized(): Promise<{ initialized: boolean }>;
+}
+
+const SherpaTTS = registerPlugin<SherpaTTSPlugin>('SherpaTTS');
 
 type SpeechCallback = (transcript: string) => void;
 type ErrorCallback = (error: string) => void;
@@ -36,6 +43,11 @@ class AudioManager {
     }
 
     try {
+      // Initialiser Sherpa TTS
+      console.log('🎯 Initializing Sherpa TTS...');
+      const result = await SherpaTTS.initialize();
+      console.log('✅ Sherpa TTS initialized! Sample rate:', result.sampleRate);
+      
       // Demander permissions
       const { speechRecognition } = await SpeechRecognition.requestPermissions();
       if (speechRecognition !== 'granted') {
@@ -45,7 +57,7 @@ class AudioManager {
       // Configurer listener STT
       await SpeechRecognition.removeAllListeners();
       await SpeechRecognition.addListener('partialResults', (data: any) => {
-        // ⬇️ CORRECTION : Ignorer si STT désactivé
+        // Ignorer si STT désactivé
         if (!this.isListening) {
           console.log('⚠️ STT result ignored (not listening)');
           return;
@@ -79,28 +91,22 @@ class AudioManager {
       if (!options?.skipPauseResume) {
         this.wasListeningBeforeTTS = this.isListening;
         if (this.isListening) {
-          console.log('⏸️ Pausing STT...');
           await this.pauseListening();
         }
       }
 
-      // 2. PARLER
+      // 2. PARLER avec Sherpa TTS
       this.isSpeaking = true;
-      await TextToSpeech.speak({
+      await SherpaTTS.speak({
         text,
-        lang: 'fr-FR',
-        rate: options?.rate || 1.0,
-        pitch: 1.0,
-        volume: 1.0,
-        category: 'playAndRecord',
-        voice: 'com.apple.voice.compact.fr-FR.Thomas',
+        speed: options?.rate || 1.0,
+        speakerId: 0
       });
       this.isSpeaking = false;
       console.log('✅ Speech completed');
 
       // 3. RÉACTIVER STT (seulement si skipPauseResume = false ET était actif avant)
       if (!options?.skipPauseResume && this.wasListeningBeforeTTS) {
-        console.log('▶️ Resuming STT...');
         await this.resumeListening();
         this.wasListeningBeforeTTS = false;
       }
@@ -115,8 +121,12 @@ class AudioManager {
    * Stopper la lecture en cours
    */
   async stopSpeaking(): Promise<void> {
-    await TextToSpeech.stop();
-    this.isSpeaking = false;
+    try {
+      await SherpaTTS.stop();
+      this.isSpeaking = false;
+    } catch (error) {
+      console.error('❌ Stop speaking error:', error);
+    }
   }
 
   /**
@@ -129,7 +139,7 @@ class AudioManager {
     }
 
     try {
-      // ⬇️ CORRECTION : Délai pour éviter "Ongoing speech recognition"
+      // Délai pour éviter "Ongoing speech recognition"
       await new Promise(r => setTimeout(r, 200));
       
       await SpeechRecognition.start({
@@ -173,12 +183,17 @@ class AudioManager {
     try {
       await SpeechRecognition.stop();
       this.isListening = false;
-      console.log('⏸️ STT paused');
       
-      // ⬇️ CORRECTION : Délai pour laisser le temps au stop de se propager
+      // Délai pour laisser le temps au stop de se propager
       await new Promise(r => setTimeout(r, 100));
     } catch (error) {
-      console.error('❌ STT pause error:', error);
+      // Ignorer erreurs "No speech detected"
+      if (error && typeof error === 'object' && 'message' in error) {
+        const msg = (error as any).message;
+        if (msg !== 'No speech detected') {
+          console.error('❌ STT pause error:', error);
+        }
+      }
     }
   }
 
@@ -187,7 +202,7 @@ class AudioManager {
    */
   private async resumeListening(): Promise<void> {
     try {
-      // ⬇️ CORRECTION : Délai pour éviter conflit
+      // Délai pour éviter conflit
       await new Promise(r => setTimeout(r, 200));
       
       await SpeechRecognition.start({
@@ -197,7 +212,6 @@ class AudioManager {
         popup: false,
       });
       this.isListening = true;
-      console.log('▶️ STT resumed');
     } catch (error) {
       console.error('❌ STT resume error:', error);
     }

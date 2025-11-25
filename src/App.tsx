@@ -9,6 +9,7 @@ import Quiz from './pages/Quiz';
 import Results from './pages/Results';
 import Scores from './pages/Scores';
 import Settings from './pages/Settings';
+import VoiceSettings from './pages/VoiceSettings';
 import NotFound from './pages/NotFound';
 import GlobalVoiceController from './features/voice/GlobalVoiceController';
 
@@ -27,6 +28,7 @@ const AppInner = () => {
         <Route path="/results" element={<Results />} />
         <Route path="/scores" element={<Scores />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/voice-settings" element={<VoiceSettings />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

@@ -1,76 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Card } from '@/components/ui/card';
-import { voiceManager } from '@/services/audio/VoiceManager';
-import { createAudioService } from '@/services/audio/AudioServiceFactory';
+import { audioManager } from '@/services/AudioManager';
 import { ChevronLeft, Volume2, Zap } from 'lucide-react';
 
 export default function VoiceSettings() {
   const navigate = useNavigate();
-  const audioService = createAudioService();
   
-  const [voices, setVoices] = useState<any[]>([]);
-  const [frenchVoices, setFrenchVoices] = useState<any[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [rate, setRate] = useState(1.2);
-  const [pitch, setPitch] = useState(1.0);
+  const [rate, setRate] = useState(1.0);
   const [isTesting, setIsTesting] = useState(false);
   
-  const testText = "Bonjour ! Ceci est un test de voix. Quelle est la capitale de la France ? Réponse A : Paris. Réponse B : Lyon. Réponse C : Marseille. À vous !";
+  // Préréglages émotions
+  const emotionPresets = [
+    { name: 'Normal', rate: 1.0, icon: '😐' },
+    { name: 'Enthousiaste', rate: 1.3, icon: '😄' },
+    { name: 'Calme', rate: 0.8, icon: '😌' },
+    { name: 'Urgent', rate: 1.5, icon: '⚡' },
+    { name: 'Dramatique', rate: 0.7, icon: '🎭' },
+  ];
   
-  useEffect(() => {
-    const loadVoices = async () => {
-      await voiceManager.initialize();
-      
-      // Récupérer toutes les voix
-      const allVoices = voiceManager.getAllVoices();
-      setVoices(allVoices);
-      
-      // Filtrer UNIQUEMENT les voix françaises (pas de filtre compact)
-      const french = voiceManager.getFrenchVoices();
-      
-      console.log('🇫🇷 Voix françaises trouvées:', french.length);
-      french.forEach((v: any) => {
-        const type = v.voiceURI?.includes('.compact.') ? '📦 Compact' : 
-                     v.voiceURI?.includes('.premium.') ? '⭐ Premium' : 
-                     v.voiceURI?.includes('.enhanced.') ? '✨ Enhanced' : '❓ Autre';
-        console.log(`  ${type} - ${v.name} (${v.lang})`);
-      });
-      
-      setFrenchVoices(french);
-      
-      // Index de la voix actuellement sélectionnée
-      setSelectedIndex(voiceManager.getSelectedVoiceIndex());
-    };
-    
-    loadVoices();
-  }, []);
+  const testText = "Bonjour ! Ceci est un test de voix. Quelle est la capitale de la France ? Réponse A : Paris. Réponse B : Lyon. Réponse C : Marseille. À vous !";
   
   const handleTest = async () => {
     setIsTesting(true);
     try {
-      console.log('🧪 TEST: Changing voice to index', selectedIndex);
-      console.log('🧪 TEST: Voice name:', voices[selectedIndex]?.name);
-      
-      // Changer la voix
-      voiceManager.setVoiceByIndex(selectedIndex);
-      
-      // Vérifier
-      const newIndex = voiceManager.getSelectedVoiceIndex();
-      const newVoice = voiceManager.getSelectedVoiceInfo();
-      console.log('🧪 TEST: Voice index after change:', newIndex);
-      console.log('🧪 TEST: Voice info after change:', newVoice);
-      
-      // ⬅️ NOUVEAU : Reset complet du TTS
-      console.log('🔄 Resetting TTS to apply new voice...');
-      if (audioService.resetTTS) {
-        await audioService.resetTTS();
-      }
-      
-      // Tester
-      await audioService.speak(testText, { rate, pitch });
+      await audioManager.speak(testText, { rate });
     } catch (error) {
       console.error('Erreur test voix:', error);
     } finally {
@@ -79,13 +35,7 @@ export default function VoiceSettings() {
   };
   
   const handleSave = () => {
-    // Sauvegarder la sélection
-    voiceManager.setVoiceByIndex(selectedIndex);
-    console.log('💾 Saved voice index:', selectedIndex);
-    console.log('💾 Saved voice:', voiceManager.getSelectedVoiceInfo());
-    
-    // TODO: Sauvegarder rate et pitch dans les settings
-    
+    // TODO: Sauvegarder rate dans les settings
     navigate('/settings');
   };
   
@@ -103,13 +53,13 @@ export default function VoiceSettings() {
         <h1 className="text-2xl font-bold text-white">Voix & Vitesse</h1>
       </div>
       
-      {/* Voix sélectionnée */}
+      {/* Vitesse et émotions */}
       <Card className="bg-quiz-card border-quiz-border p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-white">Voix actuelle</h2>
+            <h2 className="text-lg font-semibold text-white">Voix Piper (Français)</h2>
             <p className="text-sm text-gray-400">
-              {voices[selectedIndex]?.name || 'Chargement...'} ({voices[selectedIndex]?.lang})
+              TTS offline haute qualité
             </p>
           </div>
           <Button
@@ -146,89 +96,29 @@ export default function VoiceSettings() {
           </div>
         </div>
         
-        {/* Tonalité */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <label className="text-sm text-gray-300">Tonalité</label>
-            <span className="text-sm font-mono text-white">{pitch.toFixed(1)}</span>
-          </div>
-          <Slider
-            value={[pitch]}
-            onValueChange={(v) => setPitch(v[0])}
-            min={0.5}
-            max={1.5}
-            step={0.1}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>Grave (0.5)</span>
-            <span>Normal (1.0)</span>
-            <span>Aigu (1.5)</span>
-          </div>
-        </div>
-      </Card>
-      
-      {/* Liste des voix françaises */}
-      <Card className="bg-quiz-card border-quiz-border p-6 mb-6">
-        <h3 className="text-lg font-semibold text-white mb-4">
-          Voix françaises disponibles ({frenchVoices.length})
-        </h3>
-        
-        <div className="space-y-2 max-h-96 overflow-y-auto">
-          {frenchVoices.map((voice, index) => {
-            const globalIndex = voices.indexOf(voice);
-            const isSelected = globalIndex === selectedIndex;
-            const isPremium = ['Thomas', 'Amélie', 'Daniel', 'Marie'].includes(voice.name);
-            
-            return (
-              <button
-                key={globalIndex}
-                onClick={() => {
-                  console.log('🖱️ Clicked voice:', voice.name, 'global index:', globalIndex);
-                  setSelectedIndex(globalIndex);
-                  voiceManager.setVoiceByIndex(globalIndex); // ⬅️ AJOUTER ICI
-                }}
-                className={`w-full text-left p-3 rounded-lg transition-colors ${
-                  isSelected
-                    ? 'bg-quiz-correct text-white'
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
+        {/* Préréglages émotions */}
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Préréglages</h3>
+          <div className="grid grid-cols-3 gap-2">
+            {emotionPresets.map((preset) => (
+              <Button
+                key={preset.name}
+                variant={rate === preset.rate ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setRate(preset.rate)}
+                className="flex flex-col items-center gap-1 h-auto py-3"
               >
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="font-medium">{voice.name}</span>
-                    {isPremium && (
-                      <span className="ml-2 text-xs bg-yellow-500 text-black px-2 py-0.5 rounded">
-                        Premium
-                      </span>
-                    )}
-                    <p className="text-xs opacity-75">{voice.lang}</p>
-                  </div>
-                  {isSelected && (
-                    <span className="text-sm">✓</span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                <span className="text-2xl">{preset.icon}</span>
+                <span className="text-xs">{preset.name}</span>
+                <span className="text-xs text-gray-400">{preset.rate}x</span>
+              </Button>
+            ))}
+          </div>
         </div>
       </Card>
       
-      {/* Boutons d'action */}
+      {/* Actions */}
       <div className="flex gap-4">
-        <Button
-          variant="outline"
-          onClick={() => {
-            console.log('🔍 DIAGNOSTIC:');
-            console.log('  selectedIndex (state):', selectedIndex);
-            console.log('  voices[selectedIndex]:', voices[selectedIndex]);
-            console.log('  voiceManager.getSelectedVoiceIndex():', voiceManager.getSelectedVoiceIndex());
-            console.log('  voiceManager.getSelectedVoiceInfo():', voiceManager.getSelectedVoiceInfo());
-          }}
-          className="flex-1"
-        >
-          🔍 Diagnostic
-        </Button>
         <Button
           variant="outline"
           onClick={() => navigate('/settings')}
@@ -243,16 +133,6 @@ export default function VoiceSettings() {
           Enregistrer
         </Button>
       </div>
-      
-      {/* Note */}
-      <p className="text-xs text-gray-500 text-center mt-6">
-        💡 Les voix Premium (Thomas, Amélie) offrent la meilleure qualité.
-        <br />
-        Vitesse recommandée : 1.2x à 1.4x pour le mode voiture.
-        <br />
-        <br />
-        📥 Pour plus de voix : Réglages iOS → Accessibilité → Contenu énoncé → Voix
-      </p>
     </div>
   );
 }

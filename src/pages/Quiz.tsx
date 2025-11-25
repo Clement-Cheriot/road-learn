@@ -2,8 +2,8 @@
  * Page Quiz - Mode vocal hands-free avec AudioManager centralisé
  * 
  * CHANGEMENTS :
- * - Arrête complètement le GlobalVoiceController au montage
- * - Redémarre l'écoute globale au démontage (retour menu)
+ * - Système de cancellation pour éviter les flux audio parallèles
+ * - Boutons fonctionnent correctement (coupent la voix)
  */
 
 import { useEffect, useState, useRef } from 'react';
@@ -45,6 +45,9 @@ const Quiz = () => {
   // Refs
   const currentQuestionRef = useRef<Question | null>(null);
   const selectedAnswerRef = useRef<string | null>(null);
+  
+  // ⬇️ NOUVEAU : Flag de cancellation pour arrêter les séquences audio
+  const cancelTokenRef = useRef<number>(0);
 
   const currentQuestion = quizQuestions[currentQuestionIndex];
 
@@ -57,11 +60,10 @@ const Quiz = () => {
     selectedAnswerRef.current = selectedAnswer;
   }, [selectedAnswer]);
 
-  // ⬇️ NOUVEAU : Isolation audio du Quiz + Initialisation
+  // Initialisation
   useEffect(() => {
     console.log('🎮 Quiz: Taking control of audio...');
     
-    // Stopper complètement l'écoute globale (GlobalVoiceController)
     const stopGlobalListening = async () => {
       try {
         await audioManager.stopListening();
@@ -74,11 +76,10 @@ const Quiz = () => {
     stopGlobalListening();
     initializeQuiz();
 
-    // Cleanup : redémarrer l'écoute globale au retour menu
     return () => {
-      console.log('🧹 Quiz cleanup: Stopping audio...');
+      console.log('🧹 Quiz cleanup...');
+      cancelTokenRef.current++; // Annuler toutes les séquences
       cleanup();
-      console.log('🧹 Quiz cleanup: Restarting global listening...');
       audioManager.startListening();
     };
   }, []);
@@ -111,7 +112,6 @@ const Quiz = () => {
     try {
       console.log('🎮 === QUIZ INITIALIZATION START ===');
 
-      // Charger les questions
       const storage = createStorageService();
       let questions: Question[] = [];
 
@@ -135,7 +135,6 @@ const Quiz = () => {
 
       setQuizQuestions(questions);
 
-      // Créer session
       const session: QuizSession = {
         id: `quiz_${Date.now()}`,
         category: category as Category,
@@ -152,7 +151,6 @@ const Quiz = () => {
       
       setIsLoading(false);
 
-      // ⬇️ NOUVEAU : Handler commandes vocales AVANT de parler
       audioManager.onSpeech((transcript) => {
         handleVoiceCommand(transcript);
       });
@@ -167,66 +165,78 @@ const Quiz = () => {
   const speakQuestion = async () => {
     if (!currentQuestion) return;
 
+    // Capturer le token actuel
+    const myToken = cancelTokenRef.current;
+
     try {
       console.log('🔊 === SPEAK QUESTION START ===');
       
-      // ⬇️ NOUVEAU : Désactiver pause/resume auto pendant lecture question
-      // (le STT est déjà arrêté, pas besoin de le pauser)
-      
       // Question
       const questionText = applyPhoneticPronunciation(currentQuestion.question);
-      await audioManager.speak(questionText, { rate: 0.85, skipPauseResume: true });
-      await new Promise(r => setTimeout(r, 800));
-
-      // Options (SANS "Voici les options")
-      for (let i = 0; i < currentQuestion.options.length; i++) {
-        await new Promise(r => setTimeout(r, 400)); // Pause réduite
-        const letter = String.fromCharCode(65 + i); // A, B, C, D
-        const optionText = applyPhoneticPronunciation(currentQuestion.options[i].text);
-        
-        console.log(`📣 Speaking option: ${letter}... ${currentQuestion.options[i].text}`);
-        
-        // Format : "A." avec pause puis la réponse
-        // Le point évite "A Majuscule"
-        await audioManager.speak(`${letter}.`, { rate: 0.9, skipPauseResume: true });
-        await new Promise(r => setTimeout(r, 200)); // Pause réduite à 200ms
-        await audioManager.speak(optionText, { rate: 0.85, skipPauseResume: true });
-      }
-
-      // ⬇️ NOUVEAU : Démarrer le STT APRÈS avoir parlé
-      console.log('🎮 Starting STT after speaking question...');
-      await new Promise(r => setTimeout(r, 500));
       
-      // ⬇️ CRITIQUE : Ré-enregistrer le callback AVANT startListening
+      if (cancelTokenRef.current !== myToken) return;
+      await audioManager.speak(questionText, { rate: 0.85 });
+      
+      if (cancelTokenRef.current !== myToken) return;
+      await new Promise(r => setTimeout(r, 600));
+
+      // Options - TOUT EN UN SEUL BLOC pour éviter les appels multiples
+      if (cancelTokenRef.current !== myToken) return;
+      
+      const optionsText = currentQuestion.options
+        .map((opt, i) => {
+          const letter = String.fromCharCode(65 + i);
+          const optionText = applyPhoneticPronunciation(opt.text);
+          return `Réponse ${letter}. ${optionText}`;
+        })
+        .join('. ... '); // Pause entre options
+      
+      console.log('📣 Speaking all options in one block');
+      await audioManager.speak(optionsText, { rate: 0.9 });
+
+      if (cancelTokenRef.current !== myToken) return;
+
+      // Démarrer le STT
+      console.log('🎮 Starting STT after speaking question...');
+      await new Promise(r => setTimeout(r, 400));
+      
+      if (cancelTokenRef.current !== myToken) return;
+      
       audioManager.onSpeech((transcript) => {
         handleVoiceCommand(transcript);
       });
       
       await audioManager.startListening();
-
       setTimerStarted(true);
+      
       console.log('✅ === SPEAK QUESTION END ===');
-      console.log('✅ Question read, STT started');
     } catch (error) {
       console.error('❌ Error speaking question:', error);
     }
   };
 
-  const handleAnswer = async (answer: string) => {
-    if (selectedAnswerRef.current || !currentQuestionRef.current) return;
+  const handleAnswer = async (answer: string, questionAtClick?: Question) => {
+    // Utiliser la question passée en paramètre OU le ref
+    const question = questionAtClick || currentQuestionRef.current;
+    
+    if (selectedAnswerRef.current || !question) return;
 
-    const question = currentQuestionRef.current;
+    console.log('✅ ANSWER SELECTED:', answer, 'for question:', question.question.substring(0, 30));
 
-    console.log('✅ ANSWER SELECTED - Stopping quiz interaction');
-
-    // ⬇️ CRITIQUE : Arrêter le STT avant de parler
+    // CRITIQUE : Annuler toutes les séquences en cours + stopper audio
+    cancelTokenRef.current++;
+    const myToken = cancelTokenRef.current;
+    
     setTimerStarted(false);
+    await audioManager.stopSpeaking();
     await audioManager.stopListening();
     
     setSelectedAnswer(answer);
 
     const correctOption = question.options.find(o => o.isCorrect);
     const correct = answer.toLowerCase().trim() === correctOption?.text.toLowerCase().trim();
+    
+    console.log('🎯 Correct answer:', correctOption?.text, '| User answer:', answer, '| Is correct:', correct);
 
     submitAnswer({
       questionId: question.id,
@@ -235,42 +245,48 @@ const Quiz = () => {
       timeSpent: (question.timeLimit - timeLeft) * 1000,
     });
 
-    // Feedback (AudioManager gère pause STT)
+    // Feedback EN UN SEUL BLOC
+    if (cancelTokenRef.current !== myToken) return;
+    
+    let feedbackText: string;
     if (correct) {
-      const message = getRandomMessage(AUDIO_CONFIG.messages.correct);
-      await audioManager.speak(message, { rate: 1.1 });
+      feedbackText = getRandomMessage(AUDIO_CONFIG.messages.correct);
     } else {
-      // Message incorrect SANS redondance
-      const message = getRandomMessage(AUDIO_CONFIG.messages.incorrect);
-      await audioManager.speak(message, { rate: 0.9 });
-      await new Promise(r => setTimeout(r, 300));
-      // Juste la réponse, sans répéter "La bonne réponse était"
+      // Le message incorrect contient déjà "C'était :" ou "La réponse était :"
+      const incorrectMsg = getRandomMessage(AUDIO_CONFIG.messages.incorrect);
+      const correctIndex = question.options.findIndex(o => o.isCorrect);
+      const correctLetter = String.fromCharCode(65 + correctIndex);
       const correctText = applyPhoneticPronunciation(correctOption?.text || '');
-      await audioManager.speak(correctText, { rate: 0.85 });
+      // Format: "Raté ! C'était : A, Madonna"
+      feedbackText = `${incorrectMsg} ${correctLetter}, ${correctText}`;
     }
-
-    // Explication
+    
+    // Ajouter l'explication si présente
     if (question.explanation) {
-      await new Promise(r => setTimeout(r, 500));
       const explanationText = applyPhoneticPronunciation(question.explanation);
-      await audioManager.speak(explanationText, { rate: 0.85 });
+      feedbackText += `. ${explanationText}`;
     }
+    
+    // Ajouter "Question suivante" à la fin
+    feedbackText += `. ... Question suivante.`;
+    
+    await audioManager.speak(feedbackText, { rate: 0.9 });
 
-    // Annoncer "Question suivante"
-    await new Promise(r => setTimeout(r, 500));
-    await audioManager.speak('Question suivante', { rate: 0.85 });
+    if (cancelTokenRef.current !== myToken) return;
 
-    // Auto-advance
-    setTimeout(() => {
-      handleNextQuestion();
-    }, 1000);
+    // Auto-advance après que le feedback soit terminé
+    handleNextQuestion();
   };
 
   const handleNextQuestion = async () => {
+    // ⬇️ Annuler les séquences précédentes
+    cancelTokenRef.current++;
+    await audioManager.stopSpeaking();
+    await audioManager.stopListening();
+    
     const nextIndex = currentQuestionIndex + 1;
 
     if (nextIndex >= quizQuestions.length) {
-      // Quiz terminé
       await audioManager.speak('Quiz terminé ! Bravo !');
       setTimeout(() => {
         endSession();
@@ -282,15 +298,19 @@ const Quiz = () => {
     setCurrentQuestionIndex(nextIndex);
     setSelectedAnswer(null);
     setTimeLeft(30);
+    setTimerStarted(false);
   };
 
   const handleTimeUp = async () => {
     if (selectedAnswer) return;
 
-    console.log('⏱️ TIME UP - Stopping quiz interaction');
+    console.log('⏱️ TIME UP');
 
-    // ⬇️ CRITIQUE : Arrêter le STT avant de parler
+    cancelTokenRef.current++;
+    const myToken = cancelTokenRef.current;
+    
     setTimerStarted(false);
+    await audioManager.stopSpeaking();
     await audioManager.stopListening();
     
     setSelectedAnswer('timeout');
@@ -304,36 +324,38 @@ const Quiz = () => {
       timeSpent: currentQuestion.timeLimit * 1000,
     });
 
+    if (cancelTokenRef.current !== myToken) return;
+
     const correctOption = currentQuestion.options.find(o => o.isCorrect);
+    const correctIndex = currentQuestion.options.findIndex(o => o.isCorrect);
+    const correctLetter = String.fromCharCode(65 + correctIndex);
     const correctText = applyPhoneticPronunciation(correctOption?.text || '');
 
-    await audioManager.speak(
-      `Temps écoulé ! La bonne réponse était ${correctText}`,
-      { rate: 0.85 }
-    );
-
+    // Feedback en un seul bloc
+    let feedbackText = `Temps écoulé ! La bonne réponse était ${correctLetter}, ${correctText}`;
+    
     if (currentQuestion.explanation) {
-      await new Promise(r => setTimeout(r, 500));
       const explanationText = applyPhoneticPronunciation(currentQuestion.explanation);
-      await audioManager.speak(explanationText, { rate: 0.85 });
+      feedbackText += `. ${explanationText}`;
     }
+    
+    feedbackText += `. ... Question suivante.`;
 
-    await new Promise(r => setTimeout(r, 500));
-    await audioManager.speak('Question suivante', { rate: 0.85 });
+    await audioManager.speak(feedbackText, { rate: 0.9 });
 
-    setTimeout(() => {
-      handleNextQuestion();
-    }, 1000);
+    if (cancelTokenRef.current !== myToken) return;
+
+    handleNextQuestion();
   };
 
   const handleGoHome = async () => {
+    cancelTokenRef.current++;
     await cleanup();
     resetQuiz();
     navigate('/');
   };
 
   const cleanup = async () => {
-    console.log('🧹 Quiz cleanup: Stopping audio...');
     await audioManager.stopSpeaking();
     await audioManager.stopListening();
   };
@@ -342,38 +364,43 @@ const Quiz = () => {
     const text = transcript.toLowerCase().trim();
     console.log('🎤 Quiz heard:', text);
     
-    // Commandes navigation
     if (text.includes('retour') || text.includes('menu')) {
-      console.log('✅ Command: Retour menu');
       handleGoHome();
       return;
     }
     
     if (text.includes('suivant') || text.includes('next')) {
-      console.log('✅ Command: Question suivante');
       if (selectedAnswer) {
         handleNextQuestion();
       }
       return;
     }
 
-    // Réponses (si pas encore répondu)
     if (!selectedAnswer && currentQuestion) {
-      console.log('🔍 Looking for answer in:', text);
-      console.log('🔍 Available options:', currentQuestion.options.map(o => o.text.toLowerCase()));
+      const letterMap: Record<string, number> = {
+        'a': 0, 'alpha': 0, 'ah': 0,
+        'b': 1, 'bé': 1, 'beta': 1, 'bê': 1,
+        'c': 2, 'cé': 2, 'sé': 2, 'cê': 2, 'se': 2,
+        'd': 3, 'dé': 3, 'delta': 3, 'dê': 3
+      };
+
+      const firstWord = text.split(/\s+/)[0];
+      const letterIndex = letterMap[firstWord];
+
+      if (letterIndex !== undefined && currentQuestion.options[letterIndex]) {
+        console.log(`✅ Letter detected: ${firstWord} → Option ${letterIndex}`);
+        handleAnswer(currentQuestion.options[letterIndex].text, currentQuestion);
+        return;
+      }
       
       const matchedOption = currentQuestion.options.find(opt => {
         const optionText = opt.text.toLowerCase();
-        const matched = text.includes(optionText);
-        console.log(`🔍 Checking "${optionText}" in "${text}": ${matched}`);
-        return matched;
+        return text.includes(optionText);
       });
       
       if (matchedOption) {
         console.log('✅ Answer detected:', matchedOption.text);
-        handleAnswer(matchedOption.text);
-      } else {
-        console.log('❌ No matching answer found');
+        handleAnswer(matchedOption.text, currentQuestion);
       }
     }
   };
@@ -407,7 +434,6 @@ const Quiz = () => {
           </Button>
 
           <div className="flex items-center gap-2">
-            {/* Indicateur micro */}
             <div className="flex items-center gap-2 text-sm">
               {isListening ? (
                 <>
@@ -479,7 +505,7 @@ const Quiz = () => {
                   className={`h-auto min-h-[3rem] w-full justify-start px-4 py-3 text-left text-base ${
                     !showResult ? 'hover:border-primary hover:bg-primary/5' : ''
                   }`}
-                  onClick={() => !selectedAnswer && handleAnswer(option.text)}
+                  onClick={() => !selectedAnswer && handleAnswer(option.text, currentQuestion)}
                   disabled={selectedAnswer !== null}
                 >
                   <span className="mr-3 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold">

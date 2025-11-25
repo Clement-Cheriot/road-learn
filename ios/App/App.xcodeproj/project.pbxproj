@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -14,12 +14,31 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
-		7B7C9028B41B22FFBC225B38 /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 29E10C42047FE03B84663295 /* Pods_App.framework */; };
+		72ECF2E5D628C5D2B6202F5C /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9938E2394E171F44260F7DCB /* Pods_App.framework */; };
+		FA57F0C02ED4A14900890DE2 /* onnxruntime.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA57F0BE2ED4A14900890DE2 /* onnxruntime.xcframework */; };
+		FA57F0C12ED4A14900890DE2 /* onnxruntime.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = FA57F0BE2ED4A14900890DE2 /* onnxruntime.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		FA57F0C22ED4A14900890DE2 /* sherpa-onnx.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA57F0BF2ED4A14900890DE2 /* sherpa-onnx.xcframework */; };
+		FA57F0C32ED4A14900890DE2 /* sherpa-onnx.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = FA57F0BF2ED4A14900890DE2 /* sherpa-onnx.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		FA57F3B12ED4A4A700890DE2 /* SherpaTTSPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA57F3B02ED4A4A700890DE2 /* SherpaTTSPlugin.swift */; };
+		FA9C87F12ECD36B10018DC8C /* MyViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C87F02ECD36B10018DC8C /* MyViewController.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		FA57F0C42ED4A14900890DE2 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				FA57F0C12ED4A14900890DE2 /* onnxruntime.xcframework in Embed Frameworks */,
+				FA57F0C32ED4A14900890DE2 /* sherpa-onnx.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		0614EC28380407CD327108A5 /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
-		29E10C42047FE03B84663295 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -29,29 +48,54 @@
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
-		99979D749FF85FD10B383720 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
+		8ACC5106A561E19BCE416BB4 /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
+		9938E2394E171F44260F7DCB /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		F591BABB38E71C77188B81EE /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
+		FA57F0BE2ED4A14900890DE2 /* onnxruntime.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = onnxruntime.xcframework; path = Frameworks/onnxruntime.xcframework; sourceTree = "<group>"; };
+		FA57F0BF2ED4A14900890DE2 /* sherpa-onnx.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = "sherpa-onnx.xcframework"; path = "Frameworks/sherpa-onnx.xcframework"; sourceTree = "<group>"; };
+		FA57F3B02ED4A4A700890DE2 /* SherpaTTSPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SherpaTTSPlugin.swift; sourceTree = "<group>"; };
+		FA9C87DC2ECD31B20018DC8C /* PiperTTSPlugin.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = PiperTTSPlugin.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA9C87F02ECD36B10018DC8C /* MyViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyViewController.swift; sourceTree = "<group>"; };
 		FAC502132EC3573A00B22DCE /* App-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "App-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		FA57F24C2ED4A17A00890DE2 /* espeak-ng-data */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "espeak-ng-data"; sourceTree = "<group>"; };
+		FA6A4D1B2ECCC738002A7952 /* Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Resources; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		504EC3011FED79650016851F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7B7C9028B41B22FFBC225B38 /* Pods_App.framework in Frameworks */,
+				FA57F0C22ED4A14900890DE2 /* sherpa-onnx.xcframework in Frameworks */,
+				72ECF2E5D628C5D2B6202F5C /* Pods_App.framework in Frameworks */,
+				FA57F0C02ED4A14900890DE2 /* onnxruntime.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0F01B23FFC0FB8809287F0A7 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				FA57F0BE2ED4A14900890DE2 /* onnxruntime.xcframework */,
+				FA57F0BF2ED4A14900890DE2 /* sherpa-onnx.xcframework */,
+				FA9C87DC2ECD31B20018DC8C /* PiperTTSPlugin.framework */,
+				9938E2394E171F44260F7DCB /* Pods_App.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
 				9512CED0D51ACE65FD1DB849 /* Pods */,
-				E60716BE86D61A86931F3013 /* Frameworks */,
+				0F01B23FFC0FB8809287F0A7 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -66,6 +110,10 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				FA57F3B02ED4A4A700890DE2 /* SherpaTTSPlugin.swift */,
+				FA57F24C2ED4A17A00890DE2 /* espeak-ng-data */,
+				FA9C87F02ECD36B10018DC8C /* MyViewController.swift */,
+				FA6A4D1B2ECCC738002A7952 /* Resources */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -82,18 +130,10 @@
 		9512CED0D51ACE65FD1DB849 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				0614EC28380407CD327108A5 /* Pods-App.debug.xcconfig */,
-				99979D749FF85FD10B383720 /* Pods-App.release.xcconfig */,
+				8ACC5106A561E19BCE416BB4 /* Pods-App.debug.xcconfig */,
+				F591BABB38E71C77188B81EE /* Pods-App.release.xcconfig */,
 			);
 			path = Pods;
-			sourceTree = "<group>";
-		};
-		E60716BE86D61A86931F3013 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				29E10C42047FE03B84663295 /* Pods_App.framework */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -103,15 +143,20 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 504EC3161FED79650016851F /* Build configuration list for PBXNativeTarget "App" */;
 			buildPhases = (
-				2BE6381DAAC21F8D968F7CDE /* [CP] Check Pods Manifest.lock */,
+				4E76EB2C5F2BC847F77C268C /* [CP] Check Pods Manifest.lock */,
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
-				A0E1CCC85232448F4FD8A7A5 /* [CP] Embed Pods Frameworks */,
+				50EF6BFB871531A57A71FE87 /* [CP] Embed Pods Frameworks */,
+				FA57F0C42ED4A14900890DE2 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				FA57F24C2ED4A17A00890DE2 /* espeak-ng-data */,
+				FA6A4D1B2ECCC738002A7952 /* Resources */,
 			);
 			name = App;
 			productName = App;
@@ -170,7 +215,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		2BE6381DAAC21F8D968F7CDE /* [CP] Check Pods Manifest.lock */ = {
+		4E76EB2C5F2BC847F77C268C /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -192,7 +237,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		A0E1CCC85232448F4FD8A7A5 /* [CP] Embed Pods Frameworks */ = {
+		50EF6BFB871531A57A71FE87 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -215,6 +260,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				FA9C87F12ECD36B10018DC8C /* MyViewController.swift in Sources */,
+				FA57F3B12ED4A4A700890DE2 /* SherpaTTSPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -362,12 +409,23 @@
 		};
 		504EC3171FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0614EC28380407CD327108A5 /* Pods-App.debug.xcconfig */;
+			baseConfigurationReference = 8ACC5106A561E19BCE416BB4 /* Pods-App.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/Capacitor/Capacitor.framework/Headers\"",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/CapacitorCommunitySpeechRecognition/CapacitorCommunitySpeechRecognition.framework/Headers\"",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/CapacitorCommunityTextToSpeech/CapacitorCommunityTextToSpeech.framework/Headers\"",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/CapacitorCordova/Cordova.framework/Headers\"",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/CapacitorEchoCancellation/CapacitorEchoCancellation.framework/Headers\"",
+					"\"${PODS_ROOT}/Headers/Public\"",
+					"\"${PODS_ROOT}/Headers/Public/onnxruntime-c\"",
+					"$(PROJECT_DIR)/Frameworks/sherpa-onnx.xcframework/ios-arm64/Headers/**",
+				);
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -388,12 +446,23 @@
 		};
 		504EC3181FED79650016851F /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 99979D749FF85FD10B383720 /* Pods-App.release.xcconfig */;
+			baseConfigurationReference = F591BABB38E71C77188B81EE /* Pods-App.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/Capacitor/Capacitor.framework/Headers\"",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/CapacitorCommunitySpeechRecognition/CapacitorCommunitySpeechRecognition.framework/Headers\"",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/CapacitorCommunityTextToSpeech/CapacitorCommunityTextToSpeech.framework/Headers\"",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/CapacitorCordova/Cordova.framework/Headers\"",
+					"\"${PODS_CONFIGURATION_BUILD_DIR}/CapacitorEchoCancellation/CapacitorEchoCancellation.framework/Headers\"",
+					"\"${PODS_ROOT}/Headers/Public\"",
+					"\"${PODS_ROOT}/Headers/Public/onnxruntime-c\"",
+					"$(PROJECT_DIR)/Frameworks/sherpa-onnx.xcframework/ios-arm64/Headers/**",
+				);
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (

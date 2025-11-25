@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# Modèles TTS Sherpa (fichiers lourds)
+public/models/**/*.onnx
+public/models/**/espeak-ng-data/
+ios/App/App/public/models/
+
+# Frameworks iOS lourds
+ios/App/Pods/
+ios/App/App/Frameworks/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -395,3 +404,15 @@ public/models/vits-piper-fr_FR-siwis-medium/fr_FR-siwis-medium.onnx
 public/models/vits-piper-fr_FR-siwis-medium/fr_FR-siwis-medium.onnx.json
 public/models/vits-piper-fr_FR-siwis-medium/MODEL_CARD
 public/models/vits-piper-fr_FR-siwis-medium/tokens.txt
+ios/App/App/piper/
+ios/App/Frameworks/
+sherpa-onnx/
+sherpa-onnx/
+sherpa-setup/
+ios/App/App 2.xcworkspace/
+ios/App/App/espeak-ng-data/
+ios/App/App/Resources/
+android/app/src/main/assets/
+ios/App/Frameworks/
+ios/App/App/piper/
+public/assets/

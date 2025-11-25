@@ -14,8 +14,9 @@ export class NativeAudioService implements IAudioService {
   private isSpeaking: boolean = false;
   private isInitialized = false;
 
-  // ⬇️ VOIX HARDCODÉE - Thomas (voix française iOS)
-  private readonly VOICE_URI = 'com.apple.voice.compact.fr-FR.Thomas';
+  // ⬇️ VOIX HARDCODÉE - Thomas Enhanced (meilleure qualité)
+  // Fallback auto sur Compact si Enhanced pas téléchargée
+  private readonly VOICE_URI = 'com.apple.voice.enhanced.fr-FR.Thomas';
   private readonly VOICE_LANG = 'fr-FR';
 
   /**

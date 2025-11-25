@@ -3,3 +3,6 @@
 //
 
 #import <Capacitor/Capacitor.h>
+
+// Sherpa-ONNX TTS
+#include "sherpa-onnx/c-api/c-api.h"

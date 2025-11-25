@@ -104,6 +104,19 @@ export function getRandomMessage(messages: readonly string[]): string {
  * - Simplifier au maximum
  */
 export const PHONETIC_REPLACEMENTS: Record<string, string> = {
+  // Mots français mal prononcés
+  'Quiz': 'Couize',
+  'quiz': 'couize',
+  'm/s': 'mètre par seconde',
+  'km/h': 'kilomètre heure',
+  'kg': 'kilogramme',
+  
+  // Correction problème "R" coupé en début de mot (bug eSpeak)
+  'Réponse A': 'Option A',  // "R" est mal prononcé par eSpeak
+  'Réponse B': 'Option B',
+  'Réponse C': 'Option C',
+  'Réponse D': 'Option D',
+  
   // Noms propres tech
   'Elon Musk': 'Élone Meusk',
   'SpaceX': 'Spéss X',
