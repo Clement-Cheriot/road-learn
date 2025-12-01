@@ -1,23 +1,35 @@
 /**
- * AudioManager - Gestion centralisée de l'audio (TTS + STT)
+ * AudioManager - Gestion centralisée TTS + STT
+ * Pipeline pré-génération avec 2 slots parallèles
  * 
- * PRINCIPE :
- * - Une seule instance globale
- * - Gère automatiquement pause STT pendant TTS
- * - API simple pour les pages : speak(), listen(), stop()
- * 
- * UTILISE SHERPA TTS (Piper voice offline)
+ * LOGS SWIFT (filtrer avec grep):
+ * ⏳ GEN_START <key>
+ * ✅ GEN_END <key> dur=Xs gen=Xs  
+ * ▶️ PLAY_START <key>
+ * ⏸️ PLAY_END <key>
+ * ⚠️ CACHE_MISS <key>
+ * 🔄 SPEAK_DIRECT "text..."
  */
 
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { registerPlugin } from '@capacitor/core';
 
-// Enregistrer le plugin SherpaTTS
 interface SherpaTTSPlugin {
   initialize(): Promise<{ success: boolean; sampleRate: number }>;
-  speak(options: { text: string; speed?: number; speakerId?: number }): Promise<{ success: boolean }>;
+  speak(options: { text: string; speed?: number }): Promise<{ success: boolean }>;
   stop(): Promise<{ success: boolean }>;
   isInitialized(): Promise<{ initialized: boolean }>;
+  pregenerate(options: { text: string; cacheKey: string; speed?: number }): Promise<{
+    success: boolean;
+    cacheKey?: string;
+    duration?: number;
+    genTime?: number;
+  }>;
+  speakCached(options: { cacheKey: string }): Promise<{ success: boolean; reason?: string }>;
+  clearCache(): Promise<{ success: boolean; cleared?: number }>;
+  isCached(options: { cacheKey: string }): Promise<{ cached: boolean }>;
+  resetTimer(): Promise<{ success: boolean }>;
+  logEvent(options: { event: string }): Promise<{ success: boolean }>;
 }
 
 const SherpaTTS = registerPlugin<SherpaTTSPlugin>('SherpaTTS');
@@ -33,115 +45,128 @@ class AudioManager {
   private errorCallback?: ErrorCallback;
   private isInitialized = false;
 
-  /**
-   * Initialisation (à appeler au démarrage de l'app)
-   */
   async initialize(): Promise<void> {
-    if (this.isInitialized) {
-      console.log('⚠️ AudioManager already initialized');
-      return;
-    }
+    if (this.isInitialized) return;
 
     try {
-      // Initialiser Sherpa TTS
-      console.log('🎯 Initializing Sherpa TTS...');
-      const result = await SherpaTTS.initialize();
-      console.log('✅ Sherpa TTS initialized! Sample rate:', result.sampleRate);
+      await SherpaTTS.initialize();
       
-      // Demander permissions
       const { speechRecognition } = await SpeechRecognition.requestPermissions();
       if (speechRecognition !== 'granted') {
-        throw new Error('Permission microphone refusée');
+        throw new Error('Permission micro refusée');
       }
 
-      // Configurer listener STT
       await SpeechRecognition.removeAllListeners();
       await SpeechRecognition.addListener('partialResults', (data: any) => {
-        // Ignorer si STT désactivé
-        if (!this.isListening) {
-          console.log('⚠️ STT result ignored (not listening)');
-          return;
-        }
-        
-        if (this.speechCallback && data.matches && data.matches.length > 0) {
-          const transcript = data.matches[0];
-          console.log('🎤 STT:', transcript);
-          this.speechCallback(transcript);
+        if (!this.isListening) return;
+        if (this.speechCallback && data.matches?.length > 0) {
+          this.speechCallback(data.matches[0]);
         }
       });
 
       this.isInitialized = true;
-      console.log('✅ AudioManager initialized');
     } catch (error) {
-      console.error('❌ AudioManager init error:', error);
       if (this.errorCallback) {
         this.errorCallback(error instanceof Error ? error.message : 'Init error');
       }
     }
   }
 
-  /**
-   * Parler avec pause STT automatique
-   */
-  async speak(text: string, options?: { rate?: number; skipPauseResume?: boolean }): Promise<void> {
+  /** Pré-générer audio (non-bloquant, max 2 parallèles côté natif) */
+  async pregenerate(text: string, cacheKey: string, speed = 0.9): Promise<boolean> {
     try {
-      console.log('🔊 Speaking:', text.substring(0, 50) + '...');
+      const result = await SherpaTTS.pregenerate({ text, cacheKey, speed });
+      return result.success;
+    } catch {
+      return false;
+    }
+  }
 
-      // 1. PAUSE STT (seulement si skipPauseResume = false)
-      if (!options?.skipPauseResume) {
-        this.wasListeningBeforeTTS = this.isListening;
-        if (this.isListening) {
-          await this.pauseListening();
-        }
+  /** Vérifier si un audio est en cache */
+  async isCached(cacheKey: string): Promise<boolean> {
+    try {
+      const result = await SherpaTTS.isCached({ cacheKey });
+      return result.cached;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Jouer audio depuis cache. Retourne false si miss */
+  async speakCached(cacheKey: string): Promise<boolean> {
+    try {
+      this.wasListeningBeforeTTS = this.isListening;
+      if (this.isListening) await this.pauseListening();
+
+      this.isSpeaking = true;
+      const result = await SherpaTTS.speakCached({ cacheKey });
+      this.isSpeaking = false;
+
+      if (this.wasListeningBeforeTTS) {
+        await this.resumeListening();
+        this.wasListeningBeforeTTS = false;
       }
 
-      // 2. PARLER avec Sherpa TTS
-      this.isSpeaking = true;
-      await SherpaTTS.speak({
-        text,
-        speed: options?.rate || 1.0,
-        speakerId: 0
-      });
+      return result.success;
+    } catch {
       this.isSpeaking = false;
-      console.log('✅ Speech completed');
+      return false;
+    }
+  }
 
-      // 3. RÉACTIVER STT (seulement si skipPauseResume = false ET était actif avant)
+  /** Vider le cache */
+  async clearCache(): Promise<void> {
+    try {
+      await SherpaTTS.clearCache();
+    } catch {}
+  }
+
+  /** Reset timer pour logs (appeler au démarrage du quiz) */
+  async resetTimer(): Promise<void> {
+    try {
+      await SherpaTTS.resetTimer();
+    } catch {}
+  }
+
+  /** Log un événement avec timestamp */
+  async logEvent(event: string): Promise<void> {
+    try {
+      await SherpaTTS.logEvent({ event });
+    } catch {}
+  }
+
+  /** Parler directement (génère + joue) */
+  async speak(text: string, options?: { rate?: number; skipPauseResume?: boolean }): Promise<void> {
+    try {
+      if (!options?.skipPauseResume) {
+        this.wasListeningBeforeTTS = this.isListening;
+        if (this.isListening) await this.pauseListening();
+      }
+
+      this.isSpeaking = true;
+      await SherpaTTS.speak({ text, speed: options?.rate || 0.9 });
+      this.isSpeaking = false;
+
       if (!options?.skipPauseResume && this.wasListeningBeforeTTS) {
         await this.resumeListening();
         this.wasListeningBeforeTTS = false;
       }
-    } catch (error) {
+    } catch {
       this.isSpeaking = false;
-      console.error('❌ Speak error:', error);
-      throw error;
     }
   }
 
-  /**
-   * Stopper la lecture en cours
-   */
   async stopSpeaking(): Promise<void> {
     try {
       await SherpaTTS.stop();
       this.isSpeaking = false;
-    } catch (error) {
-      console.error('❌ Stop speaking error:', error);
-    }
+    } catch {}
   }
 
-  /**
-   * Démarrer l'écoute
-   */
   async startListening(): Promise<void> {
-    if (this.isListening) {
-      console.log('⚠️ Already listening, skipping');
-      return;
-    }
-
+    if (this.isListening) return;
     try {
-      // Délai pour éviter "Ongoing speech recognition"
       await new Promise(r => setTimeout(r, 200));
-      
       await SpeechRecognition.start({
         language: 'fr-FR',
         maxResults: 5,
@@ -149,62 +174,30 @@ class AudioManager {
         popup: false,
       });
       this.isListening = true;
-      console.log('✅ STT started');
-    } catch (error) {
-      console.error('❌ STT start error:', error);
-      if (this.errorCallback) {
-        this.errorCallback(error instanceof Error ? error.message : 'STT error');
-      }
+    } catch {
+      // Ignorer erreurs STT (Retry, Corrupt, etc.)
     }
   }
 
-  /**
-   * Stopper l'écoute
-   */
   async stopListening(): Promise<void> {
-    if (!this.isListening) {
-      console.log('⚠️ STT already stopped, skipping');
-      return;
-    }
-
+    if (!this.isListening) return;
     try {
       await SpeechRecognition.stop();
       this.isListening = false;
-      console.log('🛑 STT stopped');
-    } catch (error) {
-      console.error('❌ STT stop error:', error);
-    }
+    } catch {}
   }
 
-  /**
-   * Pause STT (interne - utilisé pendant TTS)
-   */
   private async pauseListening(): Promise<void> {
     try {
       await SpeechRecognition.stop();
       this.isListening = false;
-      
-      // Délai pour laisser le temps au stop de se propager
       await new Promise(r => setTimeout(r, 100));
-    } catch (error) {
-      // Ignorer erreurs "No speech detected"
-      if (error && typeof error === 'object' && 'message' in error) {
-        const msg = (error as any).message;
-        if (msg !== 'No speech detected') {
-          console.error('❌ STT pause error:', error);
-        }
-      }
-    }
+    } catch {}
   }
 
-  /**
-   * Resume STT (interne - après TTS)
-   */
   private async resumeListening(): Promise<void> {
     try {
-      // Délai pour éviter conflit
       await new Promise(r => setTimeout(r, 200));
-      
       await SpeechRecognition.start({
         language: 'fr-FR',
         maxResults: 5,
@@ -212,28 +205,17 @@ class AudioManager {
         popup: false,
       });
       this.isListening = true;
-    } catch (error) {
-      console.error('❌ STT resume error:', error);
-    }
+    } catch {}
   }
 
-  /**
-   * Enregistrer callback pour les transcriptions
-   */
   onSpeech(callback: SpeechCallback): void {
     this.speechCallback = callback;
   }
 
-  /**
-   * Enregistrer callback pour les erreurs
-   */
   onError(callback: ErrorCallback): void {
     this.errorCallback = callback;
   }
 
-  /**
-   * État actuel
-   */
   getState() {
     return {
       isSpeaking: this.isSpeaking,
@@ -243,5 +225,4 @@ class AudioManager {
   }
 }
 
-// Instance globale unique
 export const audioManager = new AudioManager();

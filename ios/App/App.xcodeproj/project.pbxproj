@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -59,11 +59,6 @@
 		FAC502132EC3573A00B22DCE /* App-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "App-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		FA57F24C2ED4A17A00890DE2 /* espeak-ng-data */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "espeak-ng-data"; sourceTree = "<group>"; };
-		FA6A4D1B2ECCC738002A7952 /* Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Resources; sourceTree = "<group>"; };
-/* End PBXFileSystemSynchronizedRootGroup section */
-
 /* Begin PBXFrameworksBuildPhase section */
 		504EC3011FED79650016851F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
@@ -111,9 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				FA57F3B02ED4A4A700890DE2 /* SherpaTTSPlugin.swift */,
-				FA57F24C2ED4A17A00890DE2 /* espeak-ng-data */,
 				FA9C87F02ECD36B10018DC8C /* MyViewController.swift */,
-				FA6A4D1B2ECCC738002A7952 /* Resources */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -153,10 +146,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				FA57F24C2ED4A17A00890DE2 /* espeak-ng-data */,
-				FA6A4D1B2ECCC738002A7952 /* Resources */,
 			);
 			name = App;
 			productName = App;

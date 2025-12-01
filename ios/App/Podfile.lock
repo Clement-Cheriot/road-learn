@@ -6,15 +6,12 @@ PODS:
   - CapacitorCommunityTextToSpeech (6.1.0):
     - Capacitor
   - CapacitorCordova (7.4.4)
-  - CapacitorEchoCancellation (1.0.0):
-    - Capacitor
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorCommunitySpeechRecognition (from `../../node_modules/@capacitor-community/speech-recognition`)"
   - "CapacitorCommunityTextToSpeech (from `../../node_modules/@capacitor-community/text-to-speech`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
-  - CapacitorEchoCancellation (from `../../node_modules/capacitor-echo-cancellation`)
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -25,16 +22,13 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor-community/text-to-speech"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
-  CapacitorEchoCancellation:
-    :path: "../../node_modules/capacitor-echo-cancellation"
 
 SPEC CHECKSUMS:
-  Capacitor: 09d9ff8e9618e8c4b3cab2bbee34a17215dd2fef
-  CapacitorCommunitySpeechRecognition: b133f6f6ba84316639fc2fd1760a6d7ab99fb23b
-  CapacitorCommunityTextToSpeech: f024b1587fd68b74180c8b132d603b44be81cda3
+  Capacitor: 358dd1c3fdd71d969547b17e159fd8a7736cb45f
+  CapacitorCommunitySpeechRecognition: 3e03566c44c2bb3b52391a33d4518b1adbdeb38f
+  CapacitorCommunityTextToSpeech: 28e4eaf26995ce7ab710480267841c57ef5eded2
   CapacitorCordova: bf648a636f3c153f652d312ae145fb508b6ffced
-  CapacitorEchoCancellation: 44d0eff924cd95ab9e37206be262f56ec0039842
 
-PODFILE CHECKSUM: 766b4cb019dd1f7e93ad460310ea287dc535ceec
+PODFILE CHECKSUM: 88e5f8682eeec93721fc7079ce2b3ac7feace04c
 
 COCOAPODS: 1.16.2

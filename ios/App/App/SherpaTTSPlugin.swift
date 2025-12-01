@@ -1,8 +1,7 @@
 //
 //  SherpaTTSPlugin.swift
-//  App
-//
-//  Plugin Capacitor pour TTS avec Sherpa-ONNX (voix Piper française)
+//  Plugin TTS Kokoro - Pipeline avec timestamps
+//  FILTRE XCODE: "chrono:"
 //
 
 import Foundation
@@ -17,424 +16,370 @@ public class SherpaTTSPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "initialize", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "speak", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "isInitialized", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "isInitialized", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pregenerate", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "speakCached", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearCache", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "isCached", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "resetTimer", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "logEvent", returnType: CAPPluginReturnPromise)
     ]
     
-    // Singleton pour éviter double initialisation
     private static var sharedTts: OpaquePointer?
-    private static var sharedSampleRate: Int32 = 22050
+    private static var sharedSampleRate: Int32 = 24000
     private static var isInitializing = false
+    private static let frenchSpeakerId: Int32 = 30
+    
+    private static var audioCache: [String: Data] = [:]
+    private static let cacheQueue = DispatchQueue(label: "tts.cache", attributes: .concurrent)
+    private static let generationQueue = DispatchQueue(label: "tts.gen", attributes: .concurrent)
+    private static let generationSemaphore = DispatchSemaphore(value: 2)
     
     private var audioPlayer: AVAudioPlayer?
-    private var isPlaying = false
-    private var pendingCall: CAPPluginCall?  // Pour résoudre après lecture
-    
-    // File d'attente pour éviter les chevauchements
-    private static var speakQueue: [(text: String, speed: Float, call: CAPPluginCall)] = []
+    private var pendingCall: CAPPluginCall?
     private static var isSpeaking = false
+    private var currentPlayingKey: String?
+    private static var audioSessionReady = false
     
-    // MARK: - Plugin Methods
+    // Timer global
+    private static var startTime: CFAbsoluteTime = 0
+    
+    private func t() -> String {
+        let elapsed = CFAbsoluteTimeGetCurrent() - SherpaTTSPlugin.startTime
+        return String(format: "%05.1f", elapsed)
+    }
     
     @objc func initialize(_ call: CAPPluginCall) {
-        // Déjà initialisé ?
         if SherpaTTSPlugin.sharedTts != nil {
-            print("✅ [SherpaTTS] Already initialized")
             call.resolve(["success": true, "sampleRate": SherpaTTSPlugin.sharedSampleRate])
             return
         }
-        
-        // En cours d'initialisation ?
         if SherpaTTSPlugin.isInitializing {
-            print("⏳ [SherpaTTS] Initialization in progress...")
             call.resolve(["success": true, "sampleRate": SherpaTTSPlugin.sharedSampleRate])
             return
         }
-        
         SherpaTTSPlugin.isInitializing = true
-        print("🎯 [SherpaTTS] Initializing...")
+        SherpaTTSPlugin.startTime = CFAbsoluteTimeGetCurrent()
         
-        // Configurer la session audio
         do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default)
-            try audioSession.setActive(true)
-        } catch {
-            print("❌ [SherpaTTS] Audio session error: \(error)")
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setActive(true)
+            SherpaTTSPlugin.audioSessionReady = true
+        } catch {}
+        
+        // DEBUG: Liste tous les fichiers du bundle
+        if let resourceURL = Bundle.main.resourceURL {
+            print("chrono: Bundle path: \(resourceURL.path)")
+            let fm = FileManager.default
+            if let contents = try? fm.contentsOfDirectory(atPath: resourceURL.path) {
+                print("chrono: Root contents: \(contents.joined(separator: ", "))")
+            }
+            // Check models folder
+            let modelsPath = resourceURL.appendingPathComponent("models")
+            if fm.fileExists(atPath: modelsPath.path) {
+                print("chrono: ✅ models/ exists")
+                if let mc = try? fm.contentsOfDirectory(atPath: modelsPath.path) {
+                    print("chrono: models/ contents: \(mc.joined(separator: ", "))")
+                }
+            } else {
+                print("chrono: ❌ models/ NOT FOUND")
+            }
+            // Check public folder
+            let publicPath = resourceURL.appendingPathComponent("public")
+            if fm.fileExists(atPath: publicPath.path) {
+                print("chrono: ✅ public/ exists")
+            }
         }
         
-        // Trouver les fichiers
-        guard let modelPath = findResourcePath("fr_FR-siwis-medium", ext: "onnx"),
-              let tokensPath = findResourcePath("tokens", ext: "txt"),
-              let dataDir = findEspeakDataDir() else {
+        guard let modelPath = findResource("model", ext: "onnx"),
+              let voicesPath = findResource("voices", ext: "bin"),
+              let tokensPath = findResource("tokens", ext: "txt"),
+              let dataDir = findDataDir() else {
             SherpaTTSPlugin.isInitializing = false
-            call.reject("Model files not found")
+            print("chrono: \(t()) ❌ INIT_FAIL - model:\(findResource("model", ext: "onnx") ?? "nil") voices:\(findResource("voices", ext: "bin") ?? "nil") tokens:\(findResource("tokens", ext: "txt") ?? "nil") dataDir:\(findDataDir() ?? "nil")")
+            call.reject("Model not found")
             return
         }
         
-        print("📁 [SherpaTTS] Model: \(modelPath)")
-        print("📁 [SherpaTTS] Data dir: \(dataDir)")
-        
-        // Créer la config
-        var config = createTTSConfig(modelPath: modelPath, tokensPath: tokensPath, dataDir: dataDir)
-        
-        // Créer l'instance TTS
+        var config = createConfig(modelPath: modelPath, voicesPath: voicesPath, tokensPath: tokensPath, dataDir: dataDir)
         SherpaTTSPlugin.sharedTts = SherpaOnnxCreateOfflineTts(&config)
         
-        if SherpaTTSPlugin.sharedTts == nil {
+        guard SherpaTTSPlugin.sharedTts != nil else {
             SherpaTTSPlugin.isInitializing = false
-            call.reject("Failed to initialize Sherpa TTS")
+            print("chrono: \(t()) ❌ INIT_FAIL")
+            call.reject("TTS init failed")
             return
         }
         
         SherpaTTSPlugin.sharedSampleRate = SherpaOnnxOfflineTtsSampleRate(SherpaTTSPlugin.sharedTts)
         SherpaTTSPlugin.isInitializing = false
-        
-        print("✅ [SherpaTTS] Initialized! Sample rate: \(SherpaTTSPlugin.sharedSampleRate)")
+        print("chrono: \(t()) ✅ INIT")
         call.resolve(["success": true, "sampleRate": SherpaTTSPlugin.sharedSampleRate])
     }
     
-    private func createTTSConfig(modelPath: String, tokensPath: String, dataDir: String) -> SherpaOnnxOfflineTtsConfig {
-        let empty = ""
-        
-        let vitsConfig = SherpaOnnxOfflineTtsVitsModelConfig(
-            model: (modelPath as NSString).utf8String,
-            lexicon: (empty as NSString).utf8String,
-            tokens: (tokensPath as NSString).utf8String,
-            data_dir: (dataDir as NSString).utf8String,
-            noise_scale: 0.667,
-            noise_scale_w: 0.8,
-            length_scale: 1.0,
-            dict_dir: (empty as NSString).utf8String
-        )
-        
-        let matchaConfig = SherpaOnnxOfflineTtsMatchaModelConfig(
-            acoustic_model: (empty as NSString).utf8String,
-            vocoder: (empty as NSString).utf8String,
-            lexicon: (empty as NSString).utf8String,
-            tokens: (empty as NSString).utf8String,
-            data_dir: (empty as NSString).utf8String,
-            noise_scale: 0.667,
-            length_scale: 1.0,
-            dict_dir: (empty as NSString).utf8String
-        )
-        
-        let kokoroConfig = SherpaOnnxOfflineTtsKokoroModelConfig(
-            model: (empty as NSString).utf8String,
-            voices: (empty as NSString).utf8String,
-            tokens: (empty as NSString).utf8String,
-            data_dir: (empty as NSString).utf8String,
-            length_scale: 1.0,
-            dict_dir: (empty as NSString).utf8String,
-            lexicon: (empty as NSString).utf8String,
-            lang: (empty as NSString).utf8String
-        )
-        
-        let kittenConfig = SherpaOnnxOfflineTtsKittenModelConfig(
-            model: (empty as NSString).utf8String,
-            voices: (empty as NSString).utf8String,
-            tokens: (empty as NSString).utf8String,
-            data_dir: (empty as NSString).utf8String,
-            length_scale: 1.0
-        )
-        
-        let zipvoiceConfig = SherpaOnnxOfflineTtsZipvoiceModelConfig(
-            tokens: (empty as NSString).utf8String,
-            text_model: (empty as NSString).utf8String,
-            flow_matching_model: (empty as NSString).utf8String,
-            vocoder: (empty as NSString).utf8String,
-            data_dir: (empty as NSString).utf8String,
-            pinyin_dict: (empty as NSString).utf8String,
-            feat_scale: 0.0,
-            t_shift: 0.0,
-            target_rms: 0.0,
-            guidance_scale: 0.0
-        )
-        
-        let modelConfig = SherpaOnnxOfflineTtsModelConfig(
-            vits: vitsConfig,
-            num_threads: 2,
-            debug: 0,  // Désactiver debug Sherpa
-            provider: ("cpu" as NSString).utf8String,
-            matcha: matchaConfig,
-            kokoro: kokoroConfig,
-            kitten: kittenConfig,
-            zipvoice: zipvoiceConfig
-        )
-        
-        return SherpaOnnxOfflineTtsConfig(
-            model: modelConfig,
-            rule_fsts: (empty as NSString).utf8String,
-            max_num_sentences: 1,
-            rule_fars: (empty as NSString).utf8String,
-            silence_scale: 1.0
-        )
-    }
-    
-    @objc func speak(_ call: CAPPluginCall) {
-        guard let text = call.getString("text"), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            // Ignorer silencieusement les textes vides
-            call.resolve(["success": true])
+    @objc func pregenerate(_ call: CAPPluginCall) {
+        guard let text = call.getString("text"), !text.isEmpty,
+              let cacheKey = call.getString("cacheKey"), !cacheKey.isEmpty,
+              let tts = SherpaTTSPlugin.sharedTts else {
+            call.resolve(["success": false])
             return
         }
         
-        guard SherpaTTSPlugin.sharedTts != nil else {
-            call.reject("TTS not initialized")
+        var cached = false
+        SherpaTTSPlugin.cacheQueue.sync { cached = SherpaTTSPlugin.audioCache[cacheKey] != nil }
+        if cached {
+            call.resolve(["success": true, "cached": true, "cacheKey": cacheKey])
             return
         }
         
         let speed = call.getFloat("speed") ?? 1.0
         
-        // Si déjà en train de parler, ajouter à la queue
-        if SherpaTTSPlugin.isSpeaking {
-            print("⏳ [SherpaTTS] Queueing: \"\(text.prefix(30))...\"")
-            SherpaTTSPlugin.speakQueue.append((text: text, speed: speed, call: call))
-            return
-        }
+        print("chrono: \(t()) ⏳ GEN \(cacheKey)")
+        let genStartTime = CFAbsoluteTimeGetCurrent()
         
-        processSpeak(text: text, speed: speed, call: call)
-    }
-    
-    private func processSpeak(text: String, speed: Float, call: CAPPluginCall) {
-        guard let tts = SherpaTTSPlugin.sharedTts else {
-            call.reject("TTS not initialized")
-            return
-        }
-        
-        SherpaTTSPlugin.isSpeaking = true
-        print("🎤 [SherpaTTS] Full text (\(text.count) chars):")
-        print(text)
-        
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
+        SherpaTTSPlugin.generationQueue.async {
+            SherpaTTSPlugin.generationSemaphore.wait()
+            defer { SherpaTTSPlugin.generationSemaphore.signal() }
             
-            // Générer l'audio + phonèmes
-            let audio = SherpaOnnxOfflineTtsGenerate(tts, text, 0, speed)
-            
-            guard let audio = audio else {
-                SherpaTTSPlugin.isSpeaking = false
-                DispatchQueue.main.async { call.reject("Synthesis failed") }
+            guard let audio = SherpaOnnxOfflineTtsGenerate(tts, text, SherpaTTSPlugin.frenchSpeakerId, speed),
+                  let wavData = self.createWavData(audio: audio) else {
+                print("chrono: \(self.t()) ❌ GEN_FAIL \(cacheKey)")
+                DispatchQueue.main.async { call.resolve(["success": false]) }
                 return
             }
             
-            let numSamples = Int(audio.pointee.n)
-            let duration = Double(numSamples) / Double(audio.pointee.sample_rate)
-            print("✅ [SherpaTTS] Generated \(String(format: "%.1f", duration))s of audio")
-            
-            guard let wavData = self.createWavData(audio: audio) else {
-                SherpaOnnxDestroyOfflineTtsGeneratedAudio(audio)
-                SherpaTTSPlugin.isSpeaking = false
-                DispatchQueue.main.async { call.reject("WAV conversion failed") }
-                return
-            }
-            
+            let duration = Double(audio.pointee.n) / Double(audio.pointee.sample_rate)
+            let genTime = CFAbsoluteTimeGetCurrent() - genStartTime
             SherpaOnnxDestroyOfflineTtsGeneratedAudio(audio)
             
+            SherpaTTSPlugin.cacheQueue.async(flags: .barrier) {
+                SherpaTTSPlugin.audioCache[cacheKey] = wavData
+            }
+            
+            print("chrono: \(self.t()) ✅ GEN \(cacheKey) \(String(format: "%.1f", duration))s (gen=\(String(format: "%.1f", genTime))s)")
+            
             DispatchQueue.main.async {
-                self.playAudio(data: wavData, call: call)
+                call.resolve(["success": true, "cacheKey": cacheKey, "duration": duration, "genTime": genTime])
             }
         }
     }
     
-    private func processNextInQueue() {
-        guard !SherpaTTSPlugin.speakQueue.isEmpty else {
-            SherpaTTSPlugin.isSpeaking = false
+    @objc func isCached(_ call: CAPPluginCall) {
+        guard let cacheKey = call.getString("cacheKey") else {
+            call.resolve(["cached": false])
+            return
+        }
+        var cached = false
+        SherpaTTSPlugin.cacheQueue.sync { cached = SherpaTTSPlugin.audioCache[cacheKey] != nil }
+        call.resolve(["cached": cached])
+    }
+    
+    @objc func speakCached(_ call: CAPPluginCall) {
+        guard let cacheKey = call.getString("cacheKey") else {
+            call.resolve(["success": false, "reason": "no_key"])
             return
         }
         
-        let next = SherpaTTSPlugin.speakQueue.removeFirst()
-        processSpeak(text: next.text, speed: next.speed, call: next.call)
+        var wavData: Data?
+        SherpaTTSPlugin.cacheQueue.sync { wavData = SherpaTTSPlugin.audioCache[cacheKey] }
+        
+        guard let data = wavData else {
+            print("chrono: \(t()) ⚠️ MISS \(cacheKey)")
+            call.resolve(["success": false, "reason": "miss"])
+            return
+        }
+        
+        if SherpaTTSPlugin.isSpeaking {
+            call.resolve(["success": false, "reason": "busy"])
+            return
+        }
+        
+        print("chrono: \(t()) ▶️ PLAY \(cacheKey)")
+        
+        SherpaTTSPlugin.isSpeaking = true
+        currentPlayingKey = cacheKey
+        playAudio(data: data, call: call, key: cacheKey)
+    }
+    
+    @objc func speak(_ call: CAPPluginCall) {
+        guard let text = call.getString("text"), !text.isEmpty,
+              let tts = SherpaTTSPlugin.sharedTts else {
+            call.resolve(["success": true])
+            return
+        }
+        
+        if SherpaTTSPlugin.isSpeaking {
+            call.resolve(["success": false, "reason": "busy"])
+            return
+        }
+        
+        let speed = call.getFloat("speed") ?? 1.0
+        SherpaTTSPlugin.isSpeaking = true
+        
+        let shortText = String(text.prefix(20))
+        print("chrono: \(t()) 🔄 DIRECT \"\(shortText)...\"")
+        let genStartTime = CFAbsoluteTimeGetCurrent()
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self,
+                  let audio = SherpaOnnxOfflineTtsGenerate(tts, text, SherpaTTSPlugin.frenchSpeakerId, speed),
+                  let wavData = self.createWavData(audio: audio) else {
+                SherpaTTSPlugin.isSpeaking = false
+                DispatchQueue.main.async { call.resolve(["success": false]) }
+                return
+            }
+            
+            let genTime = CFAbsoluteTimeGetCurrent() - genStartTime
+            let duration = Double(audio.pointee.n) / Double(audio.pointee.sample_rate)
+            SherpaOnnxDestroyOfflineTtsGeneratedAudio(audio)
+            
+            print("chrono: \(self.t()) ▶️ DIRECT \(String(format: "%.1f", duration))s (gen=\(String(format: "%.1f", genTime))s)")
+            
+            DispatchQueue.main.async { 
+                self.currentPlayingKey = "direct"
+                self.playAudio(data: wavData, call: call, key: "direct") 
+            }
+        }
     }
     
     @objc func stop(_ call: CAPPluginCall) {
-        // Vider la queue et résoudre les calls en attente
-        let queueCount = SherpaTTSPlugin.speakQueue.count
-        for item in SherpaTTSPlugin.speakQueue {
-            item.call.resolve(["success": true])  // Résoudre sans erreur
+        if currentPlayingKey != nil {
+            print("chrono: \(t()) ⏹️ STOP")
         }
-        SherpaTTSPlugin.speakQueue.removeAll()
+        audioPlayer?.stop()
         SherpaTTSPlugin.isSpeaking = false
-        
-        // Résoudre le call en cours de lecture
+        currentPlayingKey = nil
         pendingCall?.resolve(["success": true])
         pendingCall = nil
-        
-        // Arrêter la lecture en cours
-        audioPlayer?.stop()
-        isPlaying = false
-        
-        if queueCount > 0 {
-            print("🛑 [SherpaTTS] Stopped + cleared \(queueCount) queued items")
-        }
-        
         call.resolve(["success": true])
+    }
+    
+    @objc func clearCache(_ call: CAPPluginCall) {
+        var count = 0
+        SherpaTTSPlugin.cacheQueue.sync { count = SherpaTTSPlugin.audioCache.count }
+        SherpaTTSPlugin.cacheQueue.async(flags: .barrier) {
+            SherpaTTSPlugin.audioCache.removeAll()
+        }
+        call.resolve(["success": true, "cleared": count])
     }
     
     @objc func isInitialized(_ call: CAPPluginCall) {
         call.resolve(["initialized": SherpaTTSPlugin.sharedTts != nil])
     }
     
-    // MARK: - Private Methods
-    
-    private func findResourcePath(_ name: String, ext: String) -> String? {
-        // Direct dans le bundle
-        if let path = Bundle.main.path(forResource: name, ofType: ext) {
-            return path
-        }
-        
-        // Sous-dossiers
-        let searchPaths = ["models/piper", "Resources/models/piper", "piper", "models", "public/assets/models/piper", "assets/models/piper"]
-        for subpath in searchPaths {
-            if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: subpath) {
-                return url.path
-            }
-        }
-        
-        // Recherche manuelle
-        if let resourcePath = Bundle.main.resourcePath {
-            let enumerator = FileManager.default.enumerator(atPath: resourcePath)
-            let targetFile = "\(name).\(ext)"
-            while let file = enumerator?.nextObject() as? String {
-                if file.hasSuffix(targetFile) {
-                    let fullPath = (resourcePath as NSString).appendingPathComponent(file)
-                    return fullPath
-                }
-            }
-        }
-        
-        print("❌ [SherpaTTS] Model file not found: \(name).\(ext)")
-        return nil
+    @objc func resetTimer(_ call: CAPPluginCall) {
+        SherpaTTSPlugin.startTime = CFAbsoluteTimeGetCurrent()
+        print("chrono: \(t()) 🎬 QUIZ_START")
+        call.resolve(["success": true])
     }
     
-    private func findEspeakDataDir() -> String? {
-        if let url = Bundle.main.url(forResource: "espeak-ng-data", withExtension: nil) {
-            return url.path
-        }
-        
-        if let resourceURL = Bundle.main.resourceURL {
-            let knownPaths = [
-                "public/models/vits-piper-fr_FR-siwis-medium/espeak-ng-data",
-                "public/assets/models/piper/espeak-ng-data",
-                "assets/models/piper/espeak-ng-data",
-                "espeak-ng-data"
-            ]
-            for knownPath in knownPaths {
-                let espeakURL = resourceURL.appendingPathComponent(knownPath)
-                if FileManager.default.fileExists(atPath: espeakURL.path) {
-                    return espeakURL.path
-                }
-            }
-        }
-        
-        // Recherche du dossier
-        if let resourcePath = Bundle.main.resourcePath {
-            let enumerator = FileManager.default.enumerator(atPath: resourcePath)
-            while let file = enumerator?.nextObject() as? String {
-                if file.hasSuffix("espeak-ng-data") {
-                    let fullPath = (resourcePath as NSString).appendingPathComponent(file)
-                    var isDir: ObjCBool = false
-                    if FileManager.default.fileExists(atPath: fullPath, isDirectory: &isDir), isDir.boolValue {
-                        return fullPath
-                    }
-                }
-            }
-        }
-        
-        return nil
+    @objc func logEvent(_ call: CAPPluginCall) {
+        let event = call.getString("event") ?? "?"
+        print("chrono: \(t()) \(event)")
+        call.resolve(["success": true])
     }
     
-    private func createWavData(audio: UnsafePointer<SherpaOnnxGeneratedAudio>) -> Data? {
-        let numSamples = Int(audio.pointee.n)
-        let sampleRate = Int(audio.pointee.sample_rate)
-        
-        guard numSamples > 0, let samples = audio.pointee.samples else { return nil }
-        
-        // Ajouter 50ms de silence au début pour éviter coupure matérielle
-        let silenceSamples = sampleRate / 20  // 50ms
-        let totalSamples = numSamples + silenceSamples
-        
-        var wavData = Data()
-        let dataSize = UInt32(totalSamples * 2)
-        let fileSize = dataSize + 36
-        let byteRate = UInt32(sampleRate * 2)
-        
-        // RIFF header
-        wavData.append(contentsOf: [0x52, 0x49, 0x46, 0x46])
-        wavData.append(contentsOf: withUnsafeBytes(of: fileSize.littleEndian) { Array($0) })
-        wavData.append(contentsOf: [0x57, 0x41, 0x56, 0x45])
-        
-        // fmt chunk
-        wavData.append(contentsOf: [0x66, 0x6D, 0x74, 0x20])
-        wavData.append(contentsOf: [0x10, 0x00, 0x00, 0x00])
-        wavData.append(contentsOf: [0x01, 0x00])
-        wavData.append(contentsOf: [0x01, 0x00])
-        wavData.append(contentsOf: withUnsafeBytes(of: UInt32(sampleRate).littleEndian) { Array($0) })
-        wavData.append(contentsOf: withUnsafeBytes(of: byteRate.littleEndian) { Array($0) })
-        wavData.append(contentsOf: [0x02, 0x00])
-        wavData.append(contentsOf: [0x10, 0x00])
-        
-        // data chunk
-        wavData.append(contentsOf: [0x64, 0x61, 0x74, 0x61])
-        wavData.append(contentsOf: withUnsafeBytes(of: dataSize.littleEndian) { Array($0) })
-        
-        // Silence au début (50ms)
-        for _ in 0..<silenceSamples {
-            wavData.append(contentsOf: [0x00, 0x00])  // Sample à 0
-        }
-        
-        // Samples audio
-        for i in 0..<numSamples {
-            let sample = samples[i]
-            let clamped = max(-1.0, min(1.0, sample))
-            let scaled = Int16(clamped * 32767.0)
-            wavData.append(contentsOf: withUnsafeBytes(of: scaled.littleEndian) { Array($0) })
-        }
-        
-        return wavData
-    }
-    
-    private func playAudio(data: Data, call: CAPPluginCall) {
+    private func playAudio(data: Data, call: CAPPluginCall, key: String? = nil) {
         do {
-            // DEBUG: Sauvegarder le WAV dans Documents (chemin plus simple)
-            let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let wavPath = documentsDir.appendingPathComponent("sherpa_latest.wav")
-            try data.write(to: wavPath)
-            print("💾 [SherpaTTS] WAV saved to: \(wavPath.path)")
-            
-            // Activer la session audio AVANT de créer le player
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default)
-            try audioSession.setActive(true)
-            
+            // Configure audio session for playback+record (once)
+            if !SherpaTTSPlugin.audioSessionReady {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+                try session.setActive(true)
+                SherpaTTSPlugin.audioSessionReady = true
+            }
             audioPlayer = try AVAudioPlayer(data: data)
             audioPlayer?.delegate = self
             audioPlayer?.prepareToPlay()
-            audioPlayer?.play()  // Jouer immédiatement sans délai
-            
-            isPlaying = true
-            
-            // Stocker le call pour le résoudre après la lecture
+            audioPlayer?.play()
+            if let k = key {
+                print("chrono: \(t()) 🔊 START \(k)")
+            }
             pendingCall = call
-            
-            // NE PAS résoudre ici - attendre audioPlayerDidFinishPlaying
         } catch {
             SherpaTTSPlugin.isSpeaking = false
-            call.reject("Failed to play audio: \(error.localizedDescription)")
+            call.resolve(["success": false, "reason": "play_error"])
         }
+    }
+    
+    private func createWavData(audio: UnsafePointer<SherpaOnnxGeneratedAudio>) -> Data? {
+        let n = Int(audio.pointee.n)
+        let sr = Int(audio.pointee.sample_rate)
+        guard n > 0, let samples = audio.pointee.samples else { return nil }
+        
+        let silence = sr / 20
+        let total = n + silence
+        var wav = Data()
+        let dataSize = UInt32(total * 2)
+        
+        wav.append(contentsOf: [0x52,0x49,0x46,0x46])
+        wav.append(contentsOf: withUnsafeBytes(of: (dataSize+36).littleEndian) { Array($0) })
+        wav.append(contentsOf: [0x57,0x41,0x56,0x45,0x66,0x6D,0x74,0x20,0x10,0,0,0,1,0,1,0])
+        wav.append(contentsOf: withUnsafeBytes(of: UInt32(sr).littleEndian) { Array($0) })
+        wav.append(contentsOf: withUnsafeBytes(of: UInt32(sr*2).littleEndian) { Array($0) })
+        wav.append(contentsOf: [2,0,16,0,0x64,0x61,0x74,0x61])
+        wav.append(contentsOf: withUnsafeBytes(of: dataSize.littleEndian) { Array($0) })
+        
+        for _ in 0..<silence { wav.append(contentsOf: [0,0]) }
+        for i in 0..<n {
+            let s = Int16(max(-1, min(1, samples[i])) * 32767)
+            wav.append(contentsOf: withUnsafeBytes(of: s.littleEndian) { Array($0) })
+        }
+        return wav
+    }
+    
+    private func findResource(_ name: String, ext: String) -> String? {
+        // Chercher dans les chemins standards
+        for p in ["public/assets/models/kokoro", "assets/models/kokoro", "models/kokoro", "kokoro"] {
+            if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: p) {
+                return url.path
+            }
+        }
+        // Fallback: racine du bundle (si aplati)
+        if let url = Bundle.main.url(forResource: name, withExtension: ext) {
+            return url.path
+        }
+        return nil
+    }
+    
+    private func findDataDir() -> String? {
+        if let url = Bundle.main.resourceURL {
+            // Chercher espeak-ng-data dans les chemins standards
+            for p in ["public/assets/models/kokoro/espeak-ng-data", "assets/models/kokoro/espeak-ng-data", "models/kokoro/espeak-ng-data", "espeak-ng-data"] {
+                let u = url.appendingPathComponent(p)
+                if FileManager.default.fileExists(atPath: u.path) { return u.path }
+            }
+            // Fallback: racine si aplati
+            let phondataPath = url.appendingPathComponent("phondata")
+            if FileManager.default.fileExists(atPath: phondataPath.path) {
+                return url.path
+            }
+        }
+        return nil
+    }
+    
+    private func createConfig(modelPath: String, voicesPath: String, tokensPath: String, dataDir: String) -> SherpaOnnxOfflineTtsConfig {
+        let e = ""
+        let vits = SherpaOnnxOfflineTtsVitsModelConfig(model: (e as NSString).utf8String, lexicon: (e as NSString).utf8String, tokens: (e as NSString).utf8String, data_dir: (e as NSString).utf8String, noise_scale: 0.667, noise_scale_w: 0.8, length_scale: 1.0, dict_dir: (e as NSString).utf8String)
+        let matcha = SherpaOnnxOfflineTtsMatchaModelConfig(acoustic_model: (e as NSString).utf8String, vocoder: (e as NSString).utf8String, lexicon: (e as NSString).utf8String, tokens: (e as NSString).utf8String, data_dir: (e as NSString).utf8String, noise_scale: 0.667, length_scale: 1.0, dict_dir: (e as NSString).utf8String)
+        let kokoro = SherpaOnnxOfflineTtsKokoroModelConfig(model: (modelPath as NSString).utf8String, voices: (voicesPath as NSString).utf8String, tokens: (tokensPath as NSString).utf8String, data_dir: (dataDir as NSString).utf8String, length_scale: 1.0, dict_dir: (e as NSString).utf8String, lexicon: (e as NSString).utf8String, lang: ("fr" as NSString).utf8String)
+        let kitten = SherpaOnnxOfflineTtsKittenModelConfig(model: (e as NSString).utf8String, voices: (e as NSString).utf8String, tokens: (e as NSString).utf8String, data_dir: (e as NSString).utf8String, length_scale: 1.0)
+        let zipvoice = SherpaOnnxOfflineTtsZipvoiceModelConfig(tokens: (e as NSString).utf8String, text_model: (e as NSString).utf8String, flow_matching_model: (e as NSString).utf8String, vocoder: (e as NSString).utf8String, data_dir: (e as NSString).utf8String, pinyin_dict: (e as NSString).utf8String, feat_scale: 0, t_shift: 0, target_rms: 0, guidance_scale: 0)
+        let model = SherpaOnnxOfflineTtsModelConfig(vits: vits, num_threads: 2, debug: 0, provider: ("cpu" as NSString).utf8String, matcha: matcha, kokoro: kokoro, kitten: kitten, zipvoice: zipvoice)
+        return SherpaOnnxOfflineTtsConfig(model: model, rule_fsts: (e as NSString).utf8String, max_num_sentences: 1, rule_fars: (e as NSString).utf8String, silence_scale: 1.0)
     }
 }
 
-// MARK: - AVAudioPlayerDelegate
 extension SherpaTTSPlugin: AVAudioPlayerDelegate {
     public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        isPlaying = false
-        
-        // Résoudre le call en attente
+        if let key = currentPlayingKey {
+            print("chrono: \(t()) ⏸️ END \(key)")
+        }
+        SherpaTTSPlugin.isSpeaking = false
+        currentPlayingKey = nil
         pendingCall?.resolve(["success": flag])
         pendingCall = nil
-        
         notifyListeners("speechEnd", data: ["success": flag])
-        
-        // Traiter le prochain dans la queue
-        processNextInQueue()
     }
 }

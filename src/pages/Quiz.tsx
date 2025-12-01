@@ -1,19 +1,10 @@
 /**
- * Page Quiz - Mode vocal hands-free avec AudioManager centralisé
- * 
- * CHANGEMENTS :
- * - Système de cancellation pour éviter les flux audio parallèles
- * - Boutons fonctionnent correctement (coupent la voix)
+ * Quiz - Pipeline audio avec pré-génération parallèle
  */
 
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Clock,
-  Award,
-  SkipForward,
-} from 'lucide-react';
+import { ArrowLeft, Clock, Award, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -21,20 +12,21 @@ import { useQuizStore } from '@/stores/useQuizStore';
 import { createStorageService } from '@/services/storage/StorageServiceFactory';
 import { audioManager } from '@/services/AudioManager';
 import { getRandomMessage, AUDIO_CONFIG, applyPhoneticPronunciation } from '@/config/audio.config';
-import type {
-  Question,
-  Category,
-  Level,
-  QuizSession,
-} from '@/types/quiz.types';
+import type { Question, Category, Level, QuizSession } from '@/types/quiz.types';
+
+// Helpers hors composant
+const keyQ = (i: number) => `q${i}_q`;
+const keyO = (qi: number, oi: number) => `q${qi}_o${oi}`;
+const keyOk = (i: number) => `q${i}_ok`;
+const keyKo = (i: number) => `q${i}_ko`;
+const keyExp = (i: number) => `q${i}_exp`;
+const keyNext = () => `next`;
 
 const Quiz = () => {
   const navigate = useNavigate();
   const { category, level } = useParams<{ category: string; level: string }>();
-  const { currentSession, startSession, submitAnswer, endSession, resetQuiz } =
-    useQuizStore();
+  const { currentSession, startSession, submitAnswer, endSession, resetQuiz } = useQuizStore();
 
-  // States
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -42,244 +34,266 @@ const Quiz = () => {
   const [timerStarted, setTimerStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Refs
   const currentQuestionRef = useRef<Question | null>(null);
   const selectedAnswerRef = useRef<string | null>(null);
-  
-  // ⬇️ NOUVEAU : Flag de cancellation pour arrêter les séquences audio
-  const cancelTokenRef = useRef<number>(0);
+  const cancelTokenRef = useRef(0);
+  const generatingRef = useRef<Set<string>>(new Set());
+  const quizStartTimeRef = useRef(0);
 
   const currentQuestion = quizQuestions[currentQuestionIndex];
 
-  // Mettre à jour les refs
-  useEffect(() => {
-    currentQuestionRef.current = currentQuestion;
-  }, [currentQuestion]);
+  useEffect(() => { currentQuestionRef.current = currentQuestion; }, [currentQuestion]);
+  useEffect(() => { selectedAnswerRef.current = selectedAnswer; }, [selectedAnswer]);
 
+  // ===== INIT =====
   useEffect(() => {
-    selectedAnswerRef.current = selectedAnswer;
-  }, [selectedAnswer]);
-
-  // Initialisation
-  useEffect(() => {
-    console.log('🎮 Quiz: Taking control of audio...');
+    audioManager.stopListening();
     
-    const stopGlobalListening = async () => {
+    const gen = (cacheKey: string | undefined, text: string | undefined) => {
+      if (!cacheKey || !text) return;
+      if (generatingRef.current.has(cacheKey)) return;
+      generatingRef.current.add(cacheKey);
+      audioManager.pregenerate(text, cacheKey);
+    };
+
+    const buildSeg = (q: Question, qi: number) => {
+      const questionText = applyPhoneticPronunciation(q.question);
+      const options = q.options.map((opt, i) => ({
+        key: keyO(qi, i),
+        text: `Réponse ${String.fromCharCode(65 + i)}. ${applyPhoneticPronunciation(opt.text)}`
+      }));
+      const correctIdx = q.options.findIndex(o => o.isCorrect);
+      const correctLetter = String.fromCharCode(65 + correctIdx);
+      const correctText = applyPhoneticPronunciation(q.options[correctIdx]?.text || '');
+      return {
+        question: { key: keyQ(qi), text: questionText },
+        options,
+        feedbackOk: { key: keyOk(qi), text: getRandomMessage(AUDIO_CONFIG.messages.correct) },
+        feedbackKo: { key: keyKo(qi), text: `${getRandomMessage(AUDIO_CONFIG.messages.incorrect)} ${correctLetter}, ${correctText}` },
+        explanation: q.explanation ? { key: keyExp(qi), text: applyPhoneticPronunciation(q.explanation) } : null,
+        next: { key: keyNext(), text: 'Question suivante' }
+      };
+    };
+
+    const quickLoad = async () => {
+      quizStartTimeRef.current = performance.now();
+      await audioManager.resetTimer();
       try {
-        await audioManager.stopListening();
-        console.log('🛑 Global listening stopped');
-      } catch (error) {
-        console.error('❌ Error stopping global listening:', error);
+        const storage = createStorageService();
+        let questions: Question[] = [];
+
+        if (category === 'mixte') {
+          const all = await storage.getQuestions();
+          questions = all.sort(() => Math.random() - 0.5).slice(0, 10);
+        } else {
+          questions = await storage.getQuestionsByCategory(
+            category as Exclude<Category, 'mixte'>,
+            parseInt(level || '1') as Level
+          );
+        }
+
+        if (questions.length === 0) { navigate('/'); return; }
+
+        // PRÉ-GÉNÉRER Q1 IMMÉDIATEMENT
+        const seg = buildSeg(questions[0], 0);
+        gen(seg.question.key, seg.question.text);
+        gen(seg.options[0].key, seg.options[0].text);
+        gen(seg.options[1].key, seg.options[1].text);
+        gen(seg.options[2]?.key, seg.options[2]?.text);
+        gen(seg.options[3]?.key, seg.options[3]?.text);
+
+        // ATTENDRE que la question soit prête (max 3s)
+        const waitStart = Date.now();
+        while (Date.now() - waitStart < 3000) {
+          if (await audioManager.isCached(seg.question.key)) break;
+          await new Promise(r => setTimeout(r, 50));
+        }
+
+        setQuizQuestions(questions);
+        
+        const session: QuizSession = {
+          id: `quiz_${Date.now()}`,
+          category: category as Category,
+          level: parseInt(level || '1') as Level,
+          questions,
+          startedAt: new Date(),
+          score: 0,
+          maxScore: questions.reduce((sum, q) => sum + (q.points || 20), 0),
+          isComplete: false,
+        };
+        startSession(session);
+        setIsLoading(false);
+      } catch {
+        navigate('/');
       }
     };
-
-    stopGlobalListening();
-    initializeQuiz();
-
+    
+    quickLoad();
+    
     return () => {
-      console.log('🧹 Quiz cleanup...');
-      cancelTokenRef.current++; // Annuler toutes les séquences
-      cleanup();
+      cancelTokenRef.current++;
+      audioManager.stopSpeaking();
+      audioManager.stopListening();
+      audioManager.clearCache();
       audioManager.startListening();
     };
-  }, []);
+  }, [category, level, navigate, startSession]);
 
-  // Timer
+  // ===== TIMER =====
   useEffect(() => {
     if (!timerStarted || timeLeft <= 0) return;
-
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleTimeUp();
-          return 0;
-        }
+      setTimeLeft(prev => {
+        if (prev <= 1) { handleTimeUp(); return 0; }
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(interval);
   }, [timerStarted, timeLeft]);
 
-  // Parler la question au changement
+  // ===== PLAY SEQUENCE =====
   useEffect(() => {
     if (currentQuestion && !isLoading) {
-      speakQuestion();
+      playQuestionSequence();
     }
   }, [currentQuestionIndex, isLoading]);
 
-  const initializeQuiz = async () => {
-    try {
-      console.log('🎮 === QUIZ INITIALIZATION START ===');
-
-      const storage = createStorageService();
-      let questions: Question[] = [];
-
-      if (category === 'mixte') {
-        console.log('📚 Loading mixed questions...');
-        const allQuestions = await storage.getQuestions();
-        questions = allQuestions.sort(() => Math.random() - 0.5).slice(0, 10);
-        console.log('✅ Loaded', questions.length, 'questions');
-      } else {
-        questions = await storage.getQuestionsByCategory(
-          category as Exclude<Category, 'mixte'>,
-          parseInt(level || '1') as Level
-        );
-      }
-
-      if (questions.length === 0) {
-        console.error('❌ No questions found');
-        navigate('/');
-        return;
-      }
-
-      setQuizQuestions(questions);
-
-      const session: QuizSession = {
-        id: `quiz_${Date.now()}`,
-        category: category as Category,
-        level: parseInt(level || '1') as Level,
-        questions: questions,
-        startedAt: new Date(),
-        score: 0,
-        maxScore: questions.reduce((sum, q) => sum + (q.points || 20), 0),
-        isComplete: false,
-      };
-
-      startSession(session);
-      console.log('✅ Quiz session started');
-      
-      setIsLoading(false);
-
-      audioManager.onSpeech((transcript) => {
-        handleVoiceCommand(transcript);
-      });
-
-      console.log('✅ === QUIZ INITIALIZATION END ===');
-    } catch (error) {
-      console.error('❌ Error initializing quiz:', error);
-      navigate('/');
-    }
+  // Helpers
+  const gen = (cacheKey: string | undefined, text: string | undefined) => {
+    if (!cacheKey || !text) return;
+    if (generatingRef.current.has(cacheKey)) return;
+    generatingRef.current.add(cacheKey);
+    audioManager.pregenerate(text, cacheKey);
   };
 
-  const speakQuestion = async () => {
-    if (!currentQuestion) return;
+  const buildSegments = (q: Question, qi: number) => {
+    const questionText = applyPhoneticPronunciation(q.question);
+    const options = q.options.map((opt, i) => ({
+      key: keyO(qi, i),
+      text: `Réponse ${String.fromCharCode(65 + i)}. ${applyPhoneticPronunciation(opt.text)}`
+    }));
+    const correctIdx = q.options.findIndex(o => o.isCorrect);
+    const correctLetter = String.fromCharCode(65 + correctIdx);
+    const correctText = applyPhoneticPronunciation(q.options[correctIdx]?.text || '');
+    return {
+      question: { key: keyQ(qi), text: questionText },
+      options,
+      feedbackOk: { key: keyOk(qi), text: getRandomMessage(AUDIO_CONFIG.messages.correct) },
+      feedbackKo: { key: keyKo(qi), text: `${getRandomMessage(AUDIO_CONFIG.messages.incorrect)} ${correctLetter}, ${correctText}` },
+      explanation: q.explanation ? { key: keyExp(qi), text: applyPhoneticPronunciation(q.explanation) } : null,
+      next: { key: keyNext(), text: 'Question suivante' }
+    };
+  };
 
-    // Capturer le token actuel
+  const playOrFallback = async (cacheKey: string, text: string, token: number): Promise<boolean> => {
+    if (cancelTokenRef.current !== token) return false;
+    const played = await audioManager.speakCached(cacheKey);
+    if (played) return true;
+    if (cancelTokenRef.current !== token) return false;
+    await audioManager.speak(text, { rate: 0.9 });
+    return cancelTokenRef.current === token;
+  };
+
+  const playQuestionSequence = async () => {
+    if (!currentQuestion) return;
     const myToken = cancelTokenRef.current;
+    const qi = currentQuestionIndex;
+    const seg = buildSegments(currentQuestion, qi);
 
     try {
-      console.log('🔊 === SPEAK QUESTION START ===');
+      // Générer feedbacks pendant lecture question
+      gen(seg.feedbackOk.key, seg.feedbackOk.text);
+      gen(seg.feedbackKo.key, seg.feedbackKo.text);
       
-      // Question
-      const questionText = applyPhoneticPronunciation(currentQuestion.question);
-      
-      if (cancelTokenRef.current !== myToken) return;
-      await audioManager.speak(questionText, { rate: 0.85 });
-      
-      if (cancelTokenRef.current !== myToken) return;
-      await new Promise(r => setTimeout(r, 600));
+      if (!await playOrFallback(seg.question.key, seg.question.text, myToken)) return;
 
-      // Options - TOUT EN UN SEUL BLOC pour éviter les appels multiples
-      if (cancelTokenRef.current !== myToken) return;
-      
-      const optionsText = currentQuestion.options
-        .map((opt, i) => {
-          const letter = String.fromCharCode(65 + i);
-          const optionText = applyPhoneticPronunciation(opt.text);
-          return `Réponse ${letter}. ${optionText}`;
-        })
-        .join('. ... '); // Pause entre options
-      
-      console.log('📣 Speaking all options in one block');
-      await audioManager.speak(optionsText, { rate: 0.9 });
+      for (let i = 0; i < seg.options.length; i++) {
+        if (cancelTokenRef.current !== myToken) return;
+        
+        const opt = seg.options[i];
+        
+        if (i === 0 && seg.explanation) {
+          gen(seg.explanation.key, seg.explanation.text);
+          gen(seg.next.key, seg.next.text);
+        }
+        if (i === 1 && quizQuestions[qi + 1]) {
+          const nextSeg = buildSegments(quizQuestions[qi + 1], qi + 1);
+          gen(nextSeg.question.key, nextSeg.question.text);
+          gen(nextSeg.options[0].key, nextSeg.options[0].text);
+        }
+        if (i === 2 && quizQuestions[qi + 1]) {
+          const nextSeg = buildSegments(quizQuestions[qi + 1], qi + 1);
+          gen(nextSeg.options[1].key, nextSeg.options[1].text);
+          gen(nextSeg.options[2]?.key, nextSeg.options[2]?.text);
+        }
+        if (i === 3 && quizQuestions[qi + 1]) {
+          const nextSeg = buildSegments(quizQuestions[qi + 1], qi + 1);
+          gen(nextSeg.options[3]?.key, nextSeg.options[3]?.text);
+        }
+
+        if (!await playOrFallback(opt.key, opt.text, myToken)) return;
+      }
 
       if (cancelTokenRef.current !== myToken) return;
 
-      // Démarrer le STT
-      console.log('🎮 Starting STT after speaking question...');
-      await new Promise(r => setTimeout(r, 400));
-      
-      if (cancelTokenRef.current !== myToken) return;
-      
-      audioManager.onSpeech((transcript) => {
-        handleVoiceCommand(transcript);
-      });
-      
+      await new Promise(r => setTimeout(r, 200));
+      audioManager.onSpeech(handleVoiceCommand);
       await audioManager.startListening();
       setTimerStarted(true);
-      
-      console.log('✅ === SPEAK QUESTION END ===');
-    } catch (error) {
-      console.error('❌ Error speaking question:', error);
-    }
+    } catch {}
   };
 
   const handleAnswer = async (answer: string, questionAtClick?: Question) => {
-    // Utiliser la question passée en paramètre OU le ref
-    const question = questionAtClick || currentQuestionRef.current;
-    
-    if (selectedAnswerRef.current || !question) return;
+    const jsTime = ((performance.now() - quizStartTimeRef.current) / 1000).toFixed(1);
+    const q = questionAtClick || currentQuestionRef.current;
+    if (selectedAnswerRef.current || !q) return;
 
-    console.log('✅ ANSWER SELECTED:', answer, 'for question:', question.question.substring(0, 30));
+    // Log réponse utilisateur avec temps JS
+    audioManager.logEvent(`🎯 ANSWER "${answer.substring(0, 20)}" (js=${jsTime}s)`);
 
-    // CRITIQUE : Annuler toutes les séquences en cours + stopper audio
     cancelTokenRef.current++;
     const myToken = cancelTokenRef.current;
+    const qi = currentQuestionIndex;
     
     setTimerStarted(false);
     await audioManager.stopSpeaking();
     await audioManager.stopListening();
-    
     setSelectedAnswer(answer);
 
-    const correctOption = question.options.find(o => o.isCorrect);
-    const correct = answer.toLowerCase().trim() === correctOption?.text.toLowerCase().trim();
-    
-    console.log('🎯 Correct answer:', correctOption?.text, '| User answer:', answer, '| Is correct:', correct);
+    const correctOpt = q.options.find(o => o.isCorrect);
+    const isCorrect = answer.toLowerCase().trim() === correctOpt?.text.toLowerCase().trim();
 
     submitAnswer({
-      questionId: question.id,
+      questionId: q.id,
       selectedAnswer: answer,
-      isCorrect: correct,
-      timeSpent: (question.timeLimit - timeLeft) * 1000,
+      isCorrect,
+      timeSpent: (q.timeLimit - timeLeft) * 1000,
     });
 
-    // Feedback EN UN SEUL BLOC
-    if (cancelTokenRef.current !== myToken) return;
-    
-    let feedbackText: string;
-    if (correct) {
-      feedbackText = getRandomMessage(AUDIO_CONFIG.messages.correct);
-    } else {
-      // Le message incorrect contient déjà "C'était :" ou "La réponse était :"
-      const incorrectMsg = getRandomMessage(AUDIO_CONFIG.messages.incorrect);
-      const correctIndex = question.options.findIndex(o => o.isCorrect);
-      const correctLetter = String.fromCharCode(65 + correctIndex);
-      const correctText = applyPhoneticPronunciation(correctOption?.text || '');
-      // Format: "Raté ! C'était : A, Madonna"
-      feedbackText = `${incorrectMsg} ${correctLetter}, ${correctText}`;
-    }
-    
-    // Ajouter l'explication si présente
-    if (question.explanation) {
-      const explanationText = applyPhoneticPronunciation(question.explanation);
-      feedbackText += `. ${explanationText}`;
-    }
-    
-    // Ajouter "Question suivante" à la fin
-    feedbackText += `. ... Question suivante.`;
-    
-    await audioManager.speak(feedbackText, { rate: 0.9 });
-
     if (cancelTokenRef.current !== myToken) return;
 
-    // Auto-advance après que le feedback soit terminé
+    const seg = buildSegments(q, qi);
+
+    if (quizQuestions[qi + 1]) {
+      const nextSeg = buildSegments(quizQuestions[qi + 1], qi + 1);
+      gen(nextSeg.feedbackOk.key, nextSeg.feedbackOk.text);
+      gen(nextSeg.feedbackKo.key, nextSeg.feedbackKo.text);
+    }
+
+    const fbKey = isCorrect ? seg.feedbackOk.key : seg.feedbackKo.key;
+    const fbText = isCorrect ? seg.feedbackOk.text : seg.feedbackKo.text;
+    if (!await playOrFallback(fbKey, fbText, myToken)) return;
+
+    if (seg.explanation) {
+      if (!await playOrFallback(seg.explanation.key, seg.explanation.text, myToken)) return;
+    }
+
+    if (!await playOrFallback(seg.next.key, seg.next.text, myToken)) return;
+
     handleNextQuestion();
   };
 
   const handleNextQuestion = async () => {
-    // ⬇️ Annuler les séquences précédentes
     cancelTokenRef.current++;
     await audioManager.stopSpeaking();
     await audioManager.stopListening();
@@ -288,10 +302,7 @@ const Quiz = () => {
 
     if (nextIndex >= quizQuestions.length) {
       await audioManager.speak('Quiz terminé ! Bravo !');
-      setTimeout(() => {
-        endSession();
-        navigate('/results');
-      }, 2000);
+      setTimeout(() => { endSession(); navigate('/results'); }, 2000);
       return;
     }
 
@@ -303,46 +314,40 @@ const Quiz = () => {
 
   const handleTimeUp = async () => {
     if (selectedAnswer) return;
-
-    console.log('⏱️ TIME UP');
-
     cancelTokenRef.current++;
     const myToken = cancelTokenRef.current;
+    const qi = currentQuestionIndex;
+    const q = currentQuestion;
     
     setTimerStarted(false);
     await audioManager.stopSpeaking();
     await audioManager.stopListening();
-    
     setSelectedAnswer('timeout');
 
-    if (!currentQuestion) return;
+    if (!q) return;
 
     submitAnswer({
-      questionId: currentQuestion.id,
+      questionId: q.id,
       selectedAnswer: '',
       isCorrect: false,
-      timeSpent: currentQuestion.timeLimit * 1000,
+      timeSpent: q.timeLimit * 1000,
     });
 
     if (cancelTokenRef.current !== myToken) return;
 
-    const correctOption = currentQuestion.options.find(o => o.isCorrect);
-    const correctIndex = currentQuestion.options.findIndex(o => o.isCorrect);
-    const correctLetter = String.fromCharCode(65 + correctIndex);
-    const correctText = applyPhoneticPronunciation(correctOption?.text || '');
-
-    // Feedback en un seul bloc
-    let feedbackText = `Temps écoulé ! La bonne réponse était ${correctLetter}, ${correctText}`;
+    const seg = buildSegments(q, qi);
+    const correctIdx = q.options.findIndex(o => o.isCorrect);
+    const correctLetter = String.fromCharCode(65 + correctIdx);
+    const correctText = applyPhoneticPronunciation(q.options[correctIdx]?.text || '');
     
-    if (currentQuestion.explanation) {
-      const explanationText = applyPhoneticPronunciation(currentQuestion.explanation);
-      feedbackText += `. ${explanationText}`;
+    await audioManager.speak(`Temps écoulé ! La bonne réponse était ${correctLetter}, ${correctText}`, { rate: 0.9 });
+    if (cancelTokenRef.current !== myToken) return;
+
+    if (seg.explanation) {
+      if (!await playOrFallback(seg.explanation.key, seg.explanation.text, myToken)) return;
     }
-    
-    feedbackText += `. ... Question suivante.`;
 
-    await audioManager.speak(feedbackText, { rate: 0.9 });
-
+    await audioManager.speak('Question suivante', { rate: 0.9 });
     if (cancelTokenRef.current !== myToken) return;
 
     handleNextQuestion();
@@ -350,19 +355,14 @@ const Quiz = () => {
 
   const handleGoHome = async () => {
     cancelTokenRef.current++;
-    await cleanup();
+    await audioManager.stopSpeaking();
+    await audioManager.stopListening();
     resetQuiz();
     navigate('/');
   };
 
-  const cleanup = async () => {
-    await audioManager.stopSpeaking();
-    await audioManager.stopListening();
-  };
-
   const handleVoiceCommand = (transcript: string) => {
     const text = transcript.toLowerCase().trim();
-    console.log('🎤 Quiz heard:', text);
     
     if (text.includes('retour') || text.includes('menu')) {
       handleGoHome();
@@ -370,13 +370,11 @@ const Quiz = () => {
     }
     
     if (text.includes('suivant') || text.includes('next')) {
-      if (selectedAnswer) {
-        handleNextQuestion();
-      }
+      if (selectedAnswerRef.current) handleNextQuestion();
       return;
     }
 
-    if (!selectedAnswer && currentQuestion) {
+    if (!selectedAnswerRef.current && currentQuestionRef.current) {
       const letterMap: Record<string, number> = {
         'a': 0, 'alpha': 0, 'ah': 0,
         'b': 1, 'bé': 1, 'beta': 1, 'bê': 1,
@@ -386,39 +384,33 @@ const Quiz = () => {
 
       const firstWord = text.split(/\s+/)[0];
       const letterIndex = letterMap[firstWord];
+      const q = currentQuestionRef.current;
 
-      if (letterIndex !== undefined && currentQuestion.options[letterIndex]) {
-        console.log(`✅ Letter detected: ${firstWord} → Option ${letterIndex}`);
-        handleAnswer(currentQuestion.options[letterIndex].text, currentQuestion);
+      if (letterIndex !== undefined && q.options[letterIndex]) {
+        handleAnswer(q.options[letterIndex].text, q);
         return;
       }
       
-      const matchedOption = currentQuestion.options.find(opt => {
-        const optionText = opt.text.toLowerCase();
-        return text.includes(optionText);
-      });
-      
+      const matchedOption = q.options.find(opt => text.includes(opt.text.toLowerCase()));
       if (matchedOption) {
-        console.log('✅ Answer detected:', matchedOption.text);
-        handleAnswer(matchedOption.text, currentQuestion);
+        handleAnswer(matchedOption.text, q);
       }
     }
   };
 
+  // ===== RENDER =====
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-primary/5 to-accent/5">
         <div className="text-center">
           <div className="mb-4 text-4xl">⏳</div>
-          <p className="text-lg text-muted-foreground">Chargement du quiz...</p>
+          <p className="text-lg text-muted-foreground">Chargement...</p>
         </div>
       </div>
     );
   }
 
-  if (!currentQuestion) {
-    return null;
-  }
+  if (!currentQuestion) return null;
 
   const quizProgress = ((currentQuestionIndex + 1) / quizQuestions.length) * 100;
   const { isListening } = audioManager.getState();
@@ -426,7 +418,6 @@ const Quiz = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-12">
       <div className="mx-auto max-w-3xl">
-        {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={handleGoHome}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -443,7 +434,7 @@ const Quiz = () => {
               ) : (
                 <>
                   <div className="h-3 w-3 rounded-full bg-red-500" />
-                  <span className="text-muted-foreground">En lecture...</span>
+                  <span className="text-muted-foreground">Lecture...</span>
                 </>
               )}
             </div>
@@ -457,7 +448,6 @@ const Quiz = () => {
           </div>
         </div>
 
-        {/* Progression */}
         <Card className="mb-4 p-4">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="text-muted-foreground">
@@ -477,13 +467,11 @@ const Quiz = () => {
           <Progress value={quizProgress} className="h-2" />
         </Card>
 
-        {/* Question */}
         <Card className="mb-4 p-6">
           <h2 className="mb-6 text-center text-xl font-bold leading-tight">
             {currentQuestion.question}
           </h2>
 
-          {/* Options */}
           <div className="grid gap-3">
             {currentQuestion.options.map((option, index) => {
               const isSelected = selectedAnswer === option.text;
@@ -495,11 +483,7 @@ const Quiz = () => {
                   key={index}
                   variant={
                     showResult
-                      ? isCorrect
-                        ? 'default'
-                        : isSelected
-                          ? 'destructive'
-                          : 'outline'
+                      ? isCorrect ? 'default' : isSelected ? 'destructive' : 'outline'
                       : 'outline'
                   }
                   className={`h-auto min-h-[3rem] w-full justify-start px-4 py-3 text-left text-base ${
@@ -513,16 +497,13 @@ const Quiz = () => {
                   </span>
                   <span className="flex-1">{option.text}</span>
                   {showResult && isCorrect && <span className="ml-2">✓</span>}
-                  {showResult && isSelected && !isCorrect && (
-                    <span className="ml-2">✗</span>
-                  )}
+                  {showResult && isSelected && !isCorrect && <span className="ml-2">✗</span>}
                 </Button>
               );
             })}
           </div>
         </Card>
 
-        {/* Explication */}
         {selectedAnswer && currentQuestion.explanation && (
           <Card className="p-4 border-primary/20 bg-primary/5">
             <p className="text-sm text-muted-foreground">

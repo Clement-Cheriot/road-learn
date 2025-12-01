@@ -48,7 +48,6 @@
     "@sherpa-onnx-wasm/asr": "^0.0.1",
     "@sherpa-onnx-wasm/preloader": "^0.0.1",
     "@tanstack/react-query": "^5.83.0",
-    "capacitor-echo-cancellation": "file:../../../Downloads/capacitor-echo-cancellation-v7-optimized.tar.gz",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
