@@ -191,6 +191,7 @@ const Index = () => {
             <div className="h-4 w-px bg-quiz-border" />
             <div className="text-center">
               <span className="font-bold text-green-400">{accuracy}%</span>
+              <span className="ml-1 text-muted-foreground text-xs">réussite</span>
             </div>
           </div>
         )}

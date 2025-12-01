@@ -39,6 +39,8 @@ const Quiz = () => {
   const cancelTokenRef = useRef(0);
   const generatingRef = useRef<Set<string>>(new Set());
   const quizStartTimeRef = useRef(0);
+  const voiceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTranscriptRef = useRef<string>('');
 
   const currentQuestion = quizQuestions[currentQuestionIndex];
 
@@ -253,7 +255,7 @@ const Quiz = () => {
       if (cancelTokenRef.current !== myToken) return;
 
       await new Promise(r => setTimeout(r, 200));
-      audioManager.onSpeech(handleVoiceCommand);
+      audioManager.onSpeech(handleVoiceInput);
       await audioManager.startListening();
       setTimerStarted(true);
     } catch {}
@@ -315,13 +317,35 @@ const Quiz = () => {
 
   const handleNextQuestion = async () => {
     cancelTokenRef.current++;
+    // Annuler le debounce en cours
+    if (voiceDebounceRef.current) {
+      clearTimeout(voiceDebounceRef.current);
+      voiceDebounceRef.current = null;
+    }
     await audioManager.stopSpeaking();
     await audioManager.stopListening();
     
     const nextIndex = currentQuestionIndex + 1;
 
     if (nextIndex >= quizQuestions.length) {
-      await audioManager.speak('. Quiz terminé ! Bravo !');
+      // Adapter le message selon le score
+      const correctCount = answers.filter(a => a.isCorrect).length;
+      const accuracy = Math.round((correctCount / quizQuestions.length) * 100);
+      
+      let endMessage = '. Quise terminé !';
+      if (accuracy >= 80) {
+        endMessage = '. Quise terminé ! Excellent travail !';
+      } else if (accuracy >= 60) {
+        endMessage = '. Quise terminé ! Bien joué !';
+      } else if (accuracy >= 40) {
+        endMessage = '. Quise terminé ! Pas mal, tu peux faire mieux !';
+      } else if (accuracy > 0) {
+        endMessage = '. Quise terminé ! Continue de t entrainer !';
+      } else {
+        endMessage = '. Quise terminé ! Ne lâche pas, réessaye !';
+      }
+      
+      await audioManager.speak(endMessage);
       endSession();
       navigate('/results');
       return;
@@ -386,9 +410,22 @@ const Quiz = () => {
     navigate('/');
   };
 
-  const handleVoiceCommand = (transcript: string) => {
+  // Wrapper debounce pour laisser l'utilisateur finir de parler
+  const handleVoiceInput = (transcript: string) => {
     const text = transcript.toLowerCase().trim();
     
+    // Ignorer les transcripts trop courts
+    if (text.length < 3) return;
+    
+    // Stocker le dernier transcript
+    lastTranscriptRef.current = text;
+    
+    // Annuler le précédent timeout
+    if (voiceDebounceRef.current) {
+      clearTimeout(voiceDebounceRef.current);
+    }
+    
+    // Commandes immédiates (pas de debounce)
     if (text.includes('retour') || text.includes('menu')) {
       handleGoHome();
       return;
@@ -398,6 +435,14 @@ const Quiz = () => {
       if (selectedAnswerRef.current) handleNextQuestion();
       return;
     }
+    
+    // Debounce pour les réponses (attendre 800ms après le dernier mot)
+    voiceDebounceRef.current = setTimeout(() => {
+      processVoiceAnswer(lastTranscriptRef.current);
+    }, 800);
+  };
+
+  const processVoiceAnswer = (text: string) => {
 
     if (!selectedAnswerRef.current && currentQuestionRef.current) {
       const letterMap: Record<string, number> = {
@@ -425,6 +470,22 @@ const Quiz = () => {
           .replace(/mr\.?\s/i, 'monsieur ')
           .replace(/mrs\.?\s/i, 'madame ')
           .replace(/st\.?\s/i, 'saint ')
+          // Supprimer les préfixes communs
+          .replace(/traité\s+(de\s+)?/gi, '')
+          .replace(/accord\s+(de\s+)?/gi, '')
+          .replace(/bataille\s+(de\s+)?/gi, '')
+          .replace(/guerre\s+(de\s+)?/gi, '')
+          .replace(/révolution\s+(de\s+)?/gi, '')
+          .replace(/siège\s+(de\s+)?/gi, '')
+          .replace(/conférence\s+(de\s+)?/gi, '')
+          // Supprimer articles (avec word boundary)
+          .replace(/\bla\s+/gi, '')
+          .replace(/\ble\s+/gi, '')
+          .replace(/\bles\s+/gi, '')
+          .replace(/\bun\s+/gi, '')
+          .replace(/\bune\s+/gi, '')
+          .replace(/\bl'/gi, '')
+          .replace(/\bd'/gi, '')
           .replace(/[''\u2019]/g, "'")  // Apostrophes
           .replace(/[\-–—]/g, ' ')  // Tirets
           .replace(/\s+/g, ' ')  // Espaces multiples
@@ -433,34 +494,42 @@ const Quiz = () => {
 
       const normalizedTranscript = normalizeForMatch(text);
       
-      // Chercher une correspondance avec l'option normalisée
-      const matchedOption = q.options.find(opt => {
-        const normalizedOption = normalizeForMatch(opt.text);
-        // Match exact ou contenu
-        return normalizedTranscript.includes(normalizedOption) || 
-               normalizedOption.includes(normalizedTranscript) ||
-               // Match partiel (au moins 60% des mots correspondent)
-               matchWordsPartial(normalizedTranscript, normalizedOption);
+      // Extraire les mots distinctifs de chaque option
+      // Un mot distinctif est un mot qui n'apparaît que dans cette option
+      const getDistinctiveWords = (optionIndex: number): string[] => {
+        const option = q.options[optionIndex];
+        const optionWords = normalizeForMatch(option.text).split(/\s+/).filter(w => w.length > 2);
+        
+        // Mots présents dans les autres options
+        const otherWords = new Set<string>();
+        q.options.forEach((opt, idx) => {
+          if (idx !== optionIndex) {
+            normalizeForMatch(opt.text).split(/\s+/).forEach(w => {
+              if (w.length > 2) otherWords.add(w);
+            });
+          }
+        });
+        
+        // Retourner les mots qui ne sont pas dans les autres options
+        return optionWords.filter(w => !otherWords.has(w));
+      };
+
+      // Chercher une correspondance via les mots distinctifs
+      const matchedIndex = q.options.findIndex((_, idx) => {
+        const distinctiveWords = getDistinctiveWords(idx);
+        // Si au moins un mot distinctif est dans le transcript
+        return distinctiveWords.some(word => 
+          normalizedTranscript.includes(word) || 
+          normalizedTranscript.split(/\s+/).some(tw => 
+            tw.includes(word) || word.includes(tw)
+          )
+        );
       });
       
-      if (matchedOption) {
-        handleAnswer(matchedOption.text, q);
+      if (matchedIndex !== -1) {
+        handleAnswer(q.options[matchedIndex].text, q);
       }
     }
-  };
-
-  // Match partiel : vérifie si au moins 60% des mots de l'option sont dans le transcript
-  const matchWordsPartial = (transcript: string, option: string): boolean => {
-    const transcriptWords = transcript.split(/\s+/).filter(w => w.length > 2);
-    const optionWords = option.split(/\s+/).filter(w => w.length > 2);
-    
-    if (optionWords.length === 0) return false;
-    
-    const matchCount = optionWords.filter(word => 
-      transcriptWords.some(tw => tw.includes(word) || word.includes(tw))
-    ).length;
-    
-    return matchCount / optionWords.length >= 0.6;
   };
 
   // ===== RENDER =====

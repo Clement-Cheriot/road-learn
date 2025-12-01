@@ -2,18 +2,20 @@
  * Page Résultats - Récapitulatif du quiz
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Home, RotateCcw, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useQuizStore } from '@/stores/useQuizStore';
 import { createStorageService } from '@/services/storage/StorageServiceFactory';
+import { audioManager } from '@/services/AudioManager';
 import type { QuizResult } from '@/types/quiz.types';
 
 const Results = () => {
   const navigate = useNavigate();
   const { currentSession, answers, resetQuiz } = useQuizStore();
+  const hasInitVoiceRef = useRef(false);
 
   useEffect(() => {
     if (!currentSession?.isComplete) {
@@ -23,6 +25,42 @@ const Results = () => {
 
     saveResults();
   }, []);
+
+  // Commandes vocales
+  useEffect(() => {
+    if (!currentSession?.isComplete || hasInitVoiceRef.current) return;
+    hasInitVoiceRef.current = true;
+
+    const initVoice = async () => {
+      await new Promise(r => setTimeout(r, 500)); // Attendre fin annonce
+
+      const handleVoiceCommand = (transcript: string) => {
+        const text = transcript.toLowerCase().trim();
+
+        if (text.includes('rejouer') || text.includes('recommencer') || text.includes('encore')) {
+          audioManager.stopListening();
+          handlePlayAgain();
+          return;
+        }
+
+        if (text.includes('retour') || text.includes('accueil') || text.includes('menu') || text.includes('maison')) {
+          audioManager.stopListening();
+          handleHome();
+          return;
+        }
+      };
+
+      audioManager.onSpeech(handleVoiceCommand);
+      await audioManager.startListening();
+    };
+
+    initVoice();
+
+    return () => {
+      audioManager.stopListening();
+      hasInitVoiceRef.current = false;
+    };
+  }, [currentSession]);
 
   const saveResults = async () => {
     if (!currentSession) return;

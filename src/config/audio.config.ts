@@ -106,8 +106,9 @@ export function getRandomMessage(messages: readonly string[]): string {
  */
 export const PHONETIC_REPLACEMENTS: Record<string, string> = {
   // Mots français mal prononcés
-  'Quiz': 'Cou-iz',
-  'quiz': 'cou-iz',
+  'Quiz': 'Quise',
+  'quiz': 'quise',
+  '. Quiz terminé !': '. Quise terminé !',
   'm/s': 'mètre par seconde',
   'km/h': 'kilomètre heure',
   'kg': 'kilogramme',

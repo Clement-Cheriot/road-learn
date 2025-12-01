@@ -35,31 +35,56 @@ const LevelSelect = () => {
   });
   const hasSpokenRef = useRef(false);
   const progressRef = useRef(progress);
+  const questionCountsRef = useRef(questionCounts);
   
-  // Garder une ref à jour de progress
+  // Garder les refs à jour
   useEffect(() => {
     progressRef.current = progress;
   }, [progress]);
+  
+  useEffect(() => {
+    questionCountsRef.current = questionCounts;
+  }, [questionCounts]);
 
   useEffect(() => {
     loadStats();
   }, [category]);
 
-  // Lecture vocale et écoute commandes
+  // Lecture vocale et écoute commandes - après chargement des stats
   useEffect(() => {
     if (!category || hasSpokenRef.current) return;
+    
+    // Attendre que les counts soient chargés
+    const hasAnyQuestions = Object.values(questionCounts).some(c => c > 0);
+    if (!hasAnyQuestions) return;
+    
     hasSpokenRef.current = true;
 
     const checkCanPlay = (level: Level): boolean => {
-      // Pour mixte ou si premium, tout est jouable
+      // Vérifier qu'il y a des questions pour ce niveau
+      if (questionCountsRef.current[level] === 0) return false;
+      // Pour mixte ou niveaux 1-2, c'est jouable
       if (category === 'mixte') return true;
-      if (level < 3) return true; // Niveaux 1-2 toujours débloqués
+      if (level < 3) return true;
       return progressRef.current?.hasPremium || false;
     };
 
+    // Construire le message avec seulement les niveaux disponibles
+    const availableLevels: string[] = [];
+    if (questionCountsRef.current[1] > 0) availableLevels.push('Facile');
+    if (questionCountsRef.current[2] > 0) availableLevels.push('Moyen');
+    if (questionCountsRef.current[3] > 0) availableLevels.push('Difficile');
+    if (questionCountsRef.current[4] > 0) availableLevels.push('Expert');
+    if (questionCountsRef.current[5] > 0) availableLevels.push('Maître');
+
     const initVoice = async () => {
       await audioManager.stopSpeaking();
-      await audioManager.speak('. Choisis ton niveau : Facile, Moyen, Difficile, Expert ou Maître.');
+      
+      const message = availableLevels.length > 0
+        ? `. Choisis ton niveau : ${availableLevels.join(', ')}.`
+        : '. Aucun niveau disponible pour cette catégorie.';
+      
+      await audioManager.speak(message);
 
       const handleVoiceCommand = (transcript: string) => {
         const text = transcript.toLowerCase().trim();
@@ -71,8 +96,8 @@ const LevelSelect = () => {
           return;
         }
 
-        // Commandes de niveau
-        if (text.includes('facile') || text.includes('niveau 1') || text.includes('un')) {
+        // Commandes de niveau - vérifier que le niveau a des questions
+        if ((text.includes('facile') || text.includes('niveau 1') || text.includes('un')) && questionCountsRef.current[1] > 0) {
           if (checkCanPlay(1)) {
             audioManager.stopSpeaking();
             audioManager.stopListening();
@@ -81,7 +106,7 @@ const LevelSelect = () => {
           return;
         }
 
-        if (text.includes('moyen') || text.includes('niveau 2') || text.includes('deux')) {
+        if ((text.includes('moyen') || text.includes('niveau 2') || text.includes('deux')) && questionCountsRef.current[2] > 0) {
           if (checkCanPlay(2)) {
             audioManager.stopSpeaking();
             audioManager.stopListening();
@@ -90,7 +115,7 @@ const LevelSelect = () => {
           return;
         }
 
-        if (text.includes('difficile') || text.includes('niveau 3') || text.includes('trois')) {
+        if ((text.includes('difficile') || text.includes('niveau 3') || text.includes('trois')) && questionCountsRef.current[3] > 0) {
           if (checkCanPlay(3)) {
             audioManager.stopSpeaking();
             audioManager.stopListening();
@@ -99,7 +124,7 @@ const LevelSelect = () => {
           return;
         }
 
-        if (text.includes('expert') || text.includes('niveau 4') || text.includes('quatre')) {
+        if ((text.includes('expert') || text.includes('niveau 4') || text.includes('quatre')) && questionCountsRef.current[4] > 0) {
           if (checkCanPlay(4)) {
             audioManager.stopSpeaking();
             audioManager.stopListening();
@@ -108,7 +133,7 @@ const LevelSelect = () => {
           return;
         }
 
-        if (text.includes('maître') || text.includes('maitre') || text.includes('niveau 5') || text.includes('cinq')) {
+        if ((text.includes('maître') || text.includes('maitre') || text.includes('niveau 5') || text.includes('cinq')) && questionCountsRef.current[5] > 0) {
           if (checkCanPlay(5)) {
             audioManager.stopSpeaking();
             audioManager.stopListening();
@@ -128,7 +153,7 @@ const LevelSelect = () => {
       audioManager.stopListening();
       hasSpokenRef.current = false;
     };
-  }, [category, navigate]);
+  }, [category, navigate, questionCounts]);
 
   const loadStats = async () => {
     if (!category) return;
@@ -229,10 +254,23 @@ const LevelSelect = () => {
   };
 
   const canPlayLevel = (level: Level): boolean => {
+    // Pas de questions = pas jouable
+    if (questionCounts[level] === 0) return false;
+    
     const unlocked = isLevelUnlocked(level);
     const isPremium = isLevelPremium(level);
     if (!isPremium) return unlocked;
     return unlocked && (progress?.hasPremium || false);
+  };
+
+  // Tous les niveaux sont visibles (mais peuvent être grisés)
+  const isLevelVisible = (level: Level): boolean => {
+    return true; // Toujours affiché, grisé si pas de questions
+  };
+
+  // Niveau disponible = a des questions ET débloqué
+  const isLevelAvailable = (level: Level): boolean => {
+    return questionCounts[level] > 0;
   };
 
   const startLevel = async (level: Level) => {
@@ -303,7 +341,7 @@ const LevelSelect = () => {
           </Card>
         </div>
 
-        {/* Niveaux - Liste compacte */}
+        {/* Niveaux - Liste compacte (tous affichés, grisés si indisponibles) */}
         <Card className="mb-4 divide-y divide-white/10 bg-gradient-to-br from-primary/80 to-primary">
           {([1, 2, 3, 4, 5] as Level[]).map((level) => {
             const unlocked = isLevelUnlocked(level);
@@ -333,7 +371,7 @@ const LevelSelect = () => {
                   {/* Infos niveau */}
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${getLevelColor(level)}`}>
+                      <span className={`text-sm font-medium ${canPlay ? getLevelColor(level) : 'text-white/40'}`}>
                         {getLevelDifficulty(level)}
                       </span>
                       {isPremium && (
@@ -341,7 +379,9 @@ const LevelSelect = () => {
                       )}
                     </div>
                     <span className="text-xs text-white/70">
-                      {qCount} questions
+                      {qCount === 0 ? 'Pas de questions' : 
+                       isPremium && !progress?.hasPremium ? 'Premium requis' :
+                       `${qCount} questions`}
                     </span>
                   </div>
                 </div>
