@@ -32,7 +32,7 @@ const GlobalVoiceController = () => {
         await audioManager.initialize();
         
         await audioManager.speak(
-          applyPhoneticPronunciation("Mode Audio activé ! Commencez le Couize Mixte ou dites une catégorie pour démarrer. C'est parti !")
+          applyPhoneticPronunciation("Mode Audio activé ! Commencez le Quiz Mixte ou dites une catégorie pour démarrer. C'est parti !")
         );
 
         const handleVoiceCommand = (transcript: string) => {

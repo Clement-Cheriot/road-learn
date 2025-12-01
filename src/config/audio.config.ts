@@ -65,13 +65,14 @@ export const AUDIO_CONFIG = {
       "Vous assurez !",
     ],
     
-    // Variations pour réponses incorrectes (avec "C'était :" au lieu de "Presque")
+    // Variations pour réponses incorrectes
+    // Note: ". Pas" avec point avant pour éviter bug Kokoro qui tronque le P
     incorrect: [
       "C'était :",
       "Non, la réponse était :",
       "Raté ! C'était :",
       "Dommage ! La bonne réponse :",
-      "Pas cette fois ! C'était :",
+      ". Pas cette fois ! C'était :",
       "Non ! La réponse correcte :",
     ],
     
@@ -105,39 +106,128 @@ export function getRandomMessage(messages: readonly string[]): string {
  */
 export const PHONETIC_REPLACEMENTS: Record<string, string> = {
   // Mots français mal prononcés
-  'Quiz': 'Couize',
-  'quiz': 'couize',
+  'Quiz': 'Cou-iz',
+  'quiz': 'cou-iz',
   'm/s': 'mètre par seconde',
   'km/h': 'kilomètre heure',
   'kg': 'kilogramme',
   
-  // Correction problème "R" coupé en début de mot (bug eSpeak)
-  'Réponse A': 'Option A',  // "R" est mal prononcé par eSpeak
-  'Réponse B': 'Option B',
-  'Réponse C': 'Option C',
-  'Réponse D': 'Option D',
+  // Abréviations
+  'J.C.': 'Jésus Christ',
+  'J.-C.': 'Jésus Christ',
+  'av. J.-C.': 'avant Jésus Christ',
+  'apr. J.-C.': 'après Jésus Christ',
   
-  // Noms propres tech
-  'Elon Musk': 'Élone Meusk',
+  // Workarounds bugs Kokoro (troncation fin de mot)
+  'commencé': 'démarré',
+  'Commencé': 'Démarré',  'française': 'françaize',
+  'Française': 'Françaize',
+  'chanteuse': 'chanteuzze',
+  'Chanteuse': 'Chanteuz',
+  'danseuse': 'danseuzze',
+  'Danseuse': 'Danseuz',
+  "l'Australie est": "l'Australie, est",
+  
+  // Chiffres romains (bug eSpeak dit "dix-huit romain" etc.)
+  'Ier': 'premier',
+  'IIe': 'deuxième',
+  'IIIe': 'troisième',
+  'IVe': 'quatrième',
+  'Ve': 'cinquième',
+  'VIe': 'sixième',
+  'VIIe': 'septième',
+  'VIIIe': 'huitième',
+  'IXe': 'neuvième',
+  'Xe': 'dixième',
+  'XIe': 'onzième',
+  'XIIe': 'douzième',
+  'XIIIe': 'treizième',
+  'XIVe': 'quatorzième',
+  'XVe': 'quinzième',
+  'XVIe': 'seizième',
+  'XVIIe': 'dix-septième',
+  'XVIIIe': 'dix-huitième',
+  'XIXe': 'dix-neuvième',
+  'XXe': 'vingtième',
+  'XXIe': 'vingt-et-unième',
+  // Sans le "e" ordinal
+  'XVIII': 'dix-huit',
+  'XVII': 'dix-sept',
+  'XVI': 'seize',
+  'XV': 'quinze',
+  'XIV': 'quatorze',
+  'XIII': 'treize',
+  'XII': 'douze',
+  'XI': 'onze',
+  'XIX': 'dix-neuf',
+  'XXI': 'vingt-et-un',
+  'XX': 'vingt',
+  
+  // Liaisons manquantes (cas spécifiques)
+  'un oiseau': 'un noiseau',
+  'un œuf': 'un neuf',
+  'un homme': 'un nomme',
+  'un animal': 'un nanimal',
+  'un avion': 'un navion',
+  'un arbre': 'un narbre',
+  
+  // Correction problème "R" coupé en début de mot (bug eSpeak)
+  
+  // Noms propres tech - Fondateurs/CEO
+  'Elon Musk': 'Élone Meusc',
+  'Musk': 'Meusc',
   'SpaceX': 'Spéss X',
   'Tesla': 'Tessla',
+  'Jeff Bezos': 'Djeff Bézoss',
+  'Bezos': 'Bézoss',
   'Steve Jobs': 'Stive Djobz',
   'Bill Gates': 'Bile Guéïtse',
-  'Mark Zuckerberg': 'Mark Zoukeurbeurg',
+  'Bill': 'Bile',
+  'Mark Zuckerberg': 'Marc Zukeurbeurg',
+  'Zuckerberg': 'Zukeurbeurg',
+  'Mark': 'Marc',
+  
+  // Chanteurs/Artistes anglophones
+  'Taylor Swift': 'Téïlor Sou-ifte',
+  'Taylor': 'Téïlor',
+  'Swift': 'Sou-ifte',
+  
+  // Acteurs/Célébrités anglophones
+  'Robert Downey Jr': 'Robeurte Dauné Junior',
+  'Downey': 'Dauné',
+  'Chris Hemsworth': 'Crisse Èmsweurse',
+  'Hemsworth': 'Èmsweurse',
+  'Chris Evans': 'Crisse Évannse',
+  'Mark Ruffalo': 'Marc Reufalo',
+  'Tony Stark': 'Toni Starc',
+  'Tony': 'Toni',
+  'Stark': 'Starc',
+  'Iron Man': 'Aïronne Manne',
+  'Bong Joon-ho': 'Bong Djouno',
+  'Joon-ho': 'Djouno',
+  
+  // Films/Séries anglophones
+  'Joker': 'Djokeur',
+  'Parasite': 'Parazite',
+  'Once Upon a Time in Hollywood': 'Wouendce Aponne a Taillme ine Holiwoude',
+  'Lady Gaga': 'Lédi Gaga',
+  'Lady': 'Lédi',
+  'Marvel': 'Marvelle',
   
   // Entreprises tech
   'Google': 'Gougeul',
-  'Facebook': 'Fessebok',
+  'Facebook': 'Féïcebouk',
   'Amazon': 'Amazone',
   'Apple': 'Apeul',
   'Microsoft': 'Maïkrosoft',
   'Twitter': 'Touiteur',
   'Netflix': 'Nétflixx',
   'YouTube': 'Youtoube',
+  'LinkedIn': 'Linn-que-dinne',
   
   // Termes tech
-  'iPhone': 'Aïe phone',
-  'iPad': 'Aïe pad',
+  'iPhone': 'Aïphone',
+  'iPad': 'Aïpadde',
   'MacBook': 'Mac bouk',
   'Windows': 'Ouinndoze',
   'Linux': 'Lineuxe',
@@ -147,9 +237,17 @@ export const PHONETIC_REPLACEMENTS: Record<string, string> = {
   'Madonna': 'Madona',
   'Michael Jackson': 'Maïkeul Djaksone',
   'Beatles': 'les Biteulle',
-  'Rolling Stones': 'les Roling Stone',
+  'Rolling Stones': 'les Rolinne Stonne',
   'Queen': 'Kouine',
   'Elvis Presley': 'Elvis Prézlé',
+  
+  // Sports
+  'football': 'foutebole',
+  'Football': 'Foutebole',
+  
+  // Nourriture
+  'pizza': 'pidza',
+  'Pizza': 'Pidza',
   
   // Marques courantes
   'Nike': 'Naïk',
@@ -158,10 +256,12 @@ export const PHONETIC_REPLACEMENTS: Record<string, string> = {
   'McDonald': 'Mak Donald',
   
   // Lieux anglophones
-  'New York': 'Niou York',
+  'New York': 'Niou-Yorque',
   'Los Angeles': 'Loss Andjélesse',
   'London': 'Leunndonne',
-  'Hollywood': 'Oliwoud',
+  'Hollywood': 'Holiwoude',
+  'Vancouver': 'Vancouverre',
+  'Melbourne': 'Melbournne',
 };
 
 /**
@@ -171,9 +271,15 @@ export function applyPhoneticPronunciation(text: string): string {
   let result = text;
   
   // Remplacer chaque mot par sa version phonétique
+  // Utilise \b (word boundary) pour éviter les remplacements partiels
+  // Ex: "Stive" ne doit pas matcher "Ve" → "cinquième"
   for (const [original, phonetic] of Object.entries(PHONETIC_REPLACEMENTS)) {
-    // Case-insensitive replacement
-    const regex = new RegExp(original, 'gi');
+    // Si le pattern contient un espace, pas de word boundary (ex: "un oiseau")
+    // Sinon, utiliser \b pour matcher le mot complet
+    const pattern = original.includes(' ') 
+      ? original 
+      : `\\b${original}\\b`;
+    const regex = new RegExp(pattern, 'gi');
     result = result.replace(regex, phonetic);
   }
   

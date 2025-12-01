@@ -31,8 +31,9 @@ public class SherpaTTSPlugin: CAPPlugin, CAPBridgedPlugin {
     private static let frenchSpeakerId: Int32 = 30
     
     private static var audioCache: [String: Data] = [:]
+    private static var textForKey: [String: String] = [:]
     private static let cacheQueue = DispatchQueue(label: "tts.cache", attributes: .concurrent)
-    private static let generationQueue = DispatchQueue(label: "tts.gen", attributes: .concurrent)
+    private static let generationQueue = DispatchQueue(label: "tts.gen", qos: .userInitiated, attributes: .concurrent)
     private static let generationSemaphore = DispatchSemaphore(value: 2)
     
     private var audioPlayer: AVAudioPlayer?
@@ -68,29 +69,7 @@ public class SherpaTTSPlugin: CAPPlugin, CAPBridgedPlugin {
             SherpaTTSPlugin.audioSessionReady = true
         } catch {}
         
-        // DEBUG: Liste tous les fichiers du bundle
-        if let resourceURL = Bundle.main.resourceURL {
-            print("chrono: Bundle path: \(resourceURL.path)")
-            let fm = FileManager.default
-            if let contents = try? fm.contentsOfDirectory(atPath: resourceURL.path) {
-                print("chrono: Root contents: \(contents.joined(separator: ", "))")
-            }
-            // Check models folder
-            let modelsPath = resourceURL.appendingPathComponent("models")
-            if fm.fileExists(atPath: modelsPath.path) {
-                print("chrono: ✅ models/ exists")
-                if let mc = try? fm.contentsOfDirectory(atPath: modelsPath.path) {
-                    print("chrono: models/ contents: \(mc.joined(separator: ", "))")
-                }
-            } else {
-                print("chrono: ❌ models/ NOT FOUND")
-            }
-            // Check public folder
-            let publicPath = resourceURL.appendingPathComponent("public")
-            if fm.fileExists(atPath: publicPath.path) {
-                print("chrono: ✅ public/ exists")
-            }
-        }
+
         
         guard let modelPath = findResource("model", ext: "onnx"),
               let voicesPath = findResource("voices", ext: "bin"),
@@ -155,12 +134,13 @@ public class SherpaTTSPlugin: CAPPlugin, CAPBridgedPlugin {
             
             SherpaTTSPlugin.cacheQueue.async(flags: .barrier) {
                 SherpaTTSPlugin.audioCache[cacheKey] = wavData
+                SherpaTTSPlugin.textForKey[cacheKey] = text
             }
             
-            print("chrono: \(self.t()) ✅ GEN \(cacheKey) \(String(format: "%.1f", duration))s (gen=\(String(format: "%.1f", genTime))s)")
+            print("chrono: \(self.t()) ✅ GEN \(cacheKey) \(String(format: "%.1f", duration))s")
             
             DispatchQueue.main.async {
-                call.resolve(["success": true, "cacheKey": cacheKey, "duration": duration, "genTime": genTime])
+                call.resolve(["success": true, "cacheKey": cacheKey])
             }
         }
     }
@@ -195,7 +175,14 @@ public class SherpaTTSPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         
-        print("chrono: \(t()) ▶️ PLAY \(cacheKey)")
+        // Log avec texte complet
+        var displayText = cacheKey
+        SherpaTTSPlugin.cacheQueue.sync {
+            if let t = SherpaTTSPlugin.textForKey[cacheKey] {
+                displayText = "\(cacheKey) \"\(t)\""
+            }
+        }
+        print("chrono: \(t()) ▶️ \(displayText)")
         
         SherpaTTSPlugin.isSpeaking = true
         currentPlayingKey = cacheKey
@@ -260,6 +247,7 @@ public class SherpaTTSPlugin: CAPPlugin, CAPBridgedPlugin {
         SherpaTTSPlugin.cacheQueue.sync { count = SherpaTTSPlugin.audioCache.count }
         SherpaTTSPlugin.cacheQueue.async(flags: .barrier) {
             SherpaTTSPlugin.audioCache.removeAll()
+            SherpaTTSPlugin.textForKey.removeAll()
         }
         call.resolve(["success": true, "cleared": count])
     }
