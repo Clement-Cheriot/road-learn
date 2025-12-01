@@ -62,6 +62,7 @@ export interface UserAnswer {
 export interface QuizResult {
   sessionId: string;
   category: Category;
+  level: Level;
   totalQuestions: number;
   correctAnswers: number;
   score: number;

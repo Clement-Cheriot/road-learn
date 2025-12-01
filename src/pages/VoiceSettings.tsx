@@ -136,7 +136,7 @@ export default function VoiceSettings() {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-b from-quiz-dark to-black p-4 pb-24">
+    <div className="min-h-screen bg-gradient-to-b from-quiz-dark to-black p-4 pt-16 pb-24">
       {/* Header */}
       <div className="flex items-center gap-4 mb-4">
         <Button

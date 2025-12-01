@@ -1,9 +1,10 @@
 /**
  * Page d'accueil - Hub principal du quiz
+ * Design compact : tout visible sans scroll sur iPhone
  */
 
 import { useEffect, useState } from 'react';
-import { Mic, Brain, Trophy, Settings, Volume2 } from 'lucide-react';
+import { Brain, Trophy, Settings, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
@@ -17,7 +18,6 @@ const Index = () => {
   const navigate = useNavigate();
   const { progress, setProgress } = useUserStore();
   const [isInitializing, setIsInitializing] = useState(true);
-  const [audioEnabled, setAudioEnabled] = useState(true);
 
   useEffect(() => {
     initializeApp();
@@ -25,21 +25,15 @@ const Index = () => {
 
   const initializeApp = async () => {
     try {
-      // Initialiser le stockage
       const storage = createStorageService();
       await storage.init();
 
-      // Charger les questions en IndexedDB
-      // FORCE RELOAD: on recharge toujours pour avoir isCorrect
       const existingQuestions = await storage.getQuestions();
-      
-      // Vérifier si les questions ont isCorrect (migration)
       const needsReload = existingQuestions.length === 0 || 
         !existingQuestions[0]?.options?.[0]?.hasOwnProperty('isCorrect');
       
       if (needsReload) {
-        console.log('🔄 Reloading questions (missing isCorrect)...');
-        // Transformer les questions JSON au bon format
+        console.log('🔄 Reloading questions...');
         const transformedQuestions = questionsData.map((q: any) => {
           const correctOption = q.options.find((opt: any) => opt.isCorrect);
           return {
@@ -48,40 +42,24 @@ const Index = () => {
             options: q.options.map((opt: any) => ({
               id: opt.id,
               text: opt.text,
-              isCorrect: opt.isCorrect,  // IMPORTANT: garder isCorrect !
+              isCorrect: opt.isCorrect,
               phoneticText: opt.phoneticText,
               phoneticKeywords: opt.phoneticKeywords,
             })),
           };
         });
         await storage.saveQuestions(transformedQuestions);
-        console.log(
-          '✅ Questions chargées dans IndexedDB:',
-          transformedQuestions.length,
-          'questions'
-        );
-      } else {
-        console.log(
-          '✅ Questions déjà présentes:',
-          existingQuestions.length,
-          'questions'
-        );
+        console.log('✅ Questions chargées:', transformedQuestions.length);
       }
 
-      // Charger ou créer la progression utilisateur
       let userProgress = await storage.getUserProgress();
       if (!userProgress) {
         userProgress = createDefaultProgress();
       } else {
-        // Migrer les anciennes données pour inclure les nouvelles catégories
         userProgress = migrateProgress(userProgress);
       }
       await storage.saveUserProgress(userProgress);
       setProgress(userProgress);
-
-      // Vérifier disponibilité audio (AudioManager gère tout)
-      setAudioEnabled(true); // On suppose que c'est disponible, GlobalVoiceController gère l'init
-
       setIsInitializing(false);
     } catch (error) {
       console.error('Erreur initialisation:', error);
@@ -99,60 +77,15 @@ const Index = () => {
     streak: 0,
     lastPlayedAt: new Date(),
     categoryStats: {
-      'arts-litterature': {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
-      divertissement: {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
-      sport: {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
-      'histoire-politique': {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
-      'geographie-economie': {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
-      gastronomie: {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
-      'sciences-technologie': {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
-      sociales: {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
-      people: {
-        questionsAnswered: 0,
-        correctAnswers: 0,
-        accuracy: 0,
-        bestStreak: 0,
-      },
+      'arts-litterature': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      divertissement: { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      sport: { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'histoire-politique': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'geographie-economie': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      gastronomie: { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      'sciences-technologie': { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      sociales: { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
+      people: { questionsAnswered: 0, correctAnswers: 0, accuracy: 0, bestStreak: 0 },
     },
     unlockedLevels: {
       'arts-litterature': [1, 2, 3, 4, 5],
@@ -165,35 +98,23 @@ const Index = () => {
       sociales: [1, 2, 3, 4, 5],
       people: [1, 2, 3, 4, 5],
     },
-    hasPremium: true, // Pour les tests, tout est débloqué
+    hasPremium: true,
   });
 
   const migrateProgress = (oldProgress: UserProgress): UserProgress => {
     const defaultProgress = createDefaultProgress();
-
     return {
       ...oldProgress,
-      categoryStats: {
-        ...defaultProgress.categoryStats,
-        ...oldProgress.categoryStats,
-      },
-      unlockedLevels: {
-        ...defaultProgress.unlockedLevels,
-        ...(oldProgress.unlockedLevels || {}),
-      },
-      hasPremium: oldProgress.hasPremium ?? true, // Pour les tests
+      categoryStats: { ...defaultProgress.categoryStats, ...oldProgress.categoryStats },
+      unlockedLevels: { ...defaultProgress.unlockedLevels, ...(oldProgress.unlockedLevels || {}) },
+      hasPremium: oldProgress.hasPremium ?? true,
     };
   };
 
   const selectCategory = async (category: Category) => {
-    // Stopper l'audio avant de naviguer
     await audioManager.stopSpeaking();
-    
-    if (category === 'mixte') {
-      navigate(`/quiz/${category}/1`);
-    } else {
-      navigate(`/level/${category}`);
-    }
+    // Toutes les catégories (y compris mixte) vont vers la page de sélection de niveau
+    navigate(`/level/${category}`);
   };
 
   const getCategoryLabel = (category: Category): string => {
@@ -230,103 +151,76 @@ const Index = () => {
 
   if (isInitializing) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-primary/5 to-accent/5">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-quiz-dark to-black">
         <div className="text-center">
-          <Brain className="mx-auto h-16 w-16 animate-pulse text-primary" />
-          <p className="mt-4 text-lg text-muted-foreground">Chargement...</p>
+          <Brain className="mx-auto h-12 w-12 animate-pulse text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Chargement...</p>
         </div>
       </div>
     );
   }
 
+  const accuracy = progress && progress.totalQuestions > 0
+    ? Math.round((progress.totalCorrectAnswers / progress.totalQuestions) * 100)
+    : 0;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8">
-      <div className="mx-auto max-w-4xl">
-        {/* Header */}
-        <header className="mb-6 mt-12 text-center">
-          <div className="mb-3 flex items-center justify-center gap-2">
-            <div className="rounded-xl bg-gradient-primary p-3 shadow-primary">
-              <Brain className="h-8 w-8 text-primary-foreground" />
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-quiz-dark to-black p-4 pt-16">
+      <div className="mx-auto max-w-md">
+        
+        {/* Header - Logo + Titre inline */}
+        <header className="mb-4 flex items-center justify-center gap-3">
+          <div className="rounded-lg bg-gradient-primary p-2">
+            <Brain className="h-6 w-6 text-white" />
           </div>
-          <h1 className="mb-2 bg-gradient-hero bg-clip-text text-3xl font-bold text-transparent md:text-5xl">
-            QuizMaster
-          </h1>
-          <p className="text-sm text-muted-foreground">Apprends en t'amusant</p>
+          <h1 className="text-2xl font-bold text-primary">RoadLearn</h1>
         </header>
 
-        {/* Profil utilisateur */}
+        {/* Stats compactes */}
         {progress && (
-          <Card className="mb-4 p-4 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Niveau</p>
-                <p className="text-2xl font-bold text-primary">
-                  {progress.level}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">XP</p>
-                <p className="text-xl font-bold">{progress.xp}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">Précision</p>
-                <p className="text-xl font-bold text-success">
-                  {progress.totalQuestions > 0
-                    ? Math.round(
-                        (progress.totalCorrectAnswers /
-                          progress.totalQuestions) *
-                          100
-                      )
-                    : 0}
-                  %
-                </p>
-              </div>
+          <div className="mb-4 flex items-center justify-center gap-4 text-sm">
+            <div className="text-center">
+              <span className="text-muted-foreground">Niv.</span>
+              <span className="ml-1 font-bold text-primary">{progress.level}</span>
             </div>
-          </Card>
+            <div className="h-4 w-px bg-quiz-border" />
+            <div className="text-center">
+              <span className="font-bold text-white">{progress.xp}</span>
+              <span className="ml-1 text-muted-foreground">XP</span>
+            </div>
+            <div className="h-4 w-px bg-quiz-border" />
+            <div className="text-center">
+              <span className="font-bold text-green-400">{accuracy}%</span>
+            </div>
+          </div>
         )}
 
-        {/* Contrôle audio */}
-        <div className="mb-4 flex items-center justify-center gap-2">
-          <Volume2
-            className={`h-4 w-4 ${audioEnabled ? 'text-success' : 'text-muted-foreground'}`}
-          />
-          <span className="text-xs text-muted-foreground">
-            {audioEnabled ? 'Audio activé' : 'Audio désactivé'}
-          </span>
-        </div>
-        <Button onClick={() => (window.location.href = '/vad-test')}>
-          🎤 Test VAD
-        </Button>
-        {/* Quiz Mixte */}
-        <div className="mb-6">
-          <Card
-            className="group cursor-pointer overflow-hidden transition-all active:scale-95 bg-gradient-primary"
-            onClick={() => selectCategory('mixte')}
-          >
-            <div className="p-5 text-center text-white">
-              <div className="mb-3 text-5xl">🎲</div>
-              <h3 className="mb-2 text-xl font-bold">Quiz Mixte</h3>
-              <p className="mb-4 text-xs opacity-90">
-                Toutes les catégories mélangées !
-              </p>
-              <Button variant="secondary" className="w-full">
-                <Mic className="mr-2 h-4 w-4" />
-                Commencer
-              </Button>
+        {/* Quiz Mixte - Bouton principal */}
+        <Card 
+          className="mb-4 cursor-pointer border-primary/30 bg-gradient-primary transition-all active:scale-[0.98]"
+          onClick={() => selectCategory('mixte')}
+        >
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🎲</span>
+              <div>
+                <h2 className="text-lg font-bold text-white">Quiz Mixte</h2>
+                <p className="text-xs text-white/70">Toutes catégories</p>
+              </div>
             </div>
-          </Card>
-        </div>
+            <ChevronRight className="h-5 w-5 text-white/70" />
+          </div>
+        </Card>
 
-        {/* Catégories */}
-        <h2 className="mb-3 text-center text-lg font-bold">
-          Ou choisis une catégorie
-        </h2>
-        <div className="mb-6 grid gap-3 grid-cols-2 md:grid-cols-3">
-          {(
-            [
+        {/* Catégories - Liste compacte */}
+        <div className="mb-4">
+          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Catégories
+          </h2>
+          <Card className="divide-y divide-white/10 bg-gradient-to-br from-primary/80 to-primary">
+            {([
               'arts-litterature',
-              'divertissement',
+              'divertissement', 
               'sport',
               'histoire-politique',
               'geographie-economie',
@@ -334,64 +228,53 @@ const Index = () => {
               'sciences-technologie',
               'sociales',
               'people',
-            ] as const
-          ).map((category) => (
-            <Card
-              key={category}
-              className="group cursor-pointer overflow-hidden transition-all active:scale-95 hover:shadow-primary"
-              onClick={() => selectCategory(category)}
-            >
-              <div className="p-4 text-center">
-                <div className="mb-2 text-4xl">
-                  {getCategoryEmoji(category)}
+            ] as const).map((category) => (
+              <div
+                key={category}
+                className="flex cursor-pointer items-center justify-between p-3 transition-colors active:bg-white/5"
+                onClick={() => selectCategory(category)}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{getCategoryEmoji(category)}</span>
+                  <span className="text-sm font-medium text-white">
+                    {getCategoryLabel(category)}
+                  </span>
                 </div>
-                <h3 className="mb-2 text-sm font-bold leading-tight">
-                  {getCategoryLabel(category)}
-                </h3>
-                {progress && (
-                  <div className="text-xs text-muted-foreground mb-3">
-                    <p>
-                      {progress.categoryStats[category].questionsAnswered}{' '}
-                      questions
-                    </p>
-                    <p className="text-success">
-                      {Math.round(progress.categoryStats[category].accuracy)}%
-                    </p>
-                  </div>
-                )}
-                <Button variant="default" size="sm" className="w-full text-xs">
-                  <Mic className="mr-1 h-3 w-3" />
-                  Niveaux
-                </Button>
+                <div className="flex items-center gap-2">
+                  {progress && (
+                    <span className="text-xs text-white/70">
+                      {Math.round(progress.categoryStats[category]?.accuracy || 0)}%
+                    </span>
+                  )}
+                  <ChevronRight className="h-4 w-4 text-white/70" />
+                </div>
               </div>
-            </Card>
-          ))}
+            ))}
+          </Card>
         </div>
 
         {/* Actions secondaires */}
-        <div className="grid gap-3 grid-cols-2">
+        <div className="flex gap-3">
           <Button
             variant="outline"
-            className="w-full"
+            size="sm"
+            className="flex-1 border-quiz-border bg-quiz-card"
             onClick={() => navigate('/scores')}
           >
             <Trophy className="mr-2 h-4 w-4" />
-            <span className="text-sm">Scores</span>
+            Scores
           </Button>
           <Button
             variant="outline"
-            className="w-full"
+            size="sm"
+            className="flex-1 border-quiz-border bg-quiz-card"
             onClick={() => navigate('/settings')}
           >
             <Settings className="mr-2 h-4 w-4" />
-            <span className="text-sm">Réglages</span>
+            Réglages
           </Button>
         </div>
 
-        {/* Info plateforme */}
-        <div className="mt-6 rounded-lg bg-card p-3 text-center text-xs text-muted-foreground">
-          <p>🌐 Version Web (POC)</p>
-        </div>
       </div>
     </div>
   );

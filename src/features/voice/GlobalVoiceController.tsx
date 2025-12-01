@@ -50,25 +50,62 @@ const GlobalVoiceController = () => {
 
           if (text.includes('mixte') || text.includes('mix') || text.includes('commencer le quiz')) {
             audioManager.stopSpeaking();
-            navigate('/quiz/mixte/1');
+            navigate('/level/mixte');
             return;
           }
 
-          if (text.includes('histoire')) {
+          // Toutes les catégories
+          if (text.includes('art') || text.includes('littérature') || text.includes('litterature')) {
+            audioManager.stopSpeaking();
+            navigate('/level/arts-litterature');
+            return;
+          }
+
+          if (text.includes('divertissement') || text.includes('cinéma') || text.includes('cinema') || text.includes('film')) {
+            audioManager.stopSpeaking();
+            navigate('/level/divertissement');
+            return;
+          }
+
+          if (text.includes('sport') || text.includes('foot')) {
+            audioManager.stopSpeaking();
+            navigate('/level/sport');
+            return;
+          }
+
+          if (text.includes('histoire') || text.includes('politique')) {
             audioManager.stopSpeaking();
             navigate('/level/histoire-politique');
             return;
           }
 
-          if (text.includes('géographie') || text.includes('geographie')) {
+          if (text.includes('géographie') || text.includes('geographie') || text.includes('économie') || text.includes('economie')) {
             audioManager.stopSpeaking();
             navigate('/level/geographie-economie');
             return;
           }
 
-          if (text.includes('sciences')) {
+          if (text.includes('gastronomie') || text.includes('cuisine') || text.includes('nourriture')) {
+            audioManager.stopSpeaking();
+            navigate('/level/gastronomie');
+            return;
+          }
+
+          if (text.includes('science') || text.includes('technologie') || text.includes('tech')) {
             audioManager.stopSpeaking();
             navigate('/level/sciences-technologie');
+            return;
+          }
+
+          if (text.includes('social') || text.includes('société') || text.includes('societe')) {
+            audioManager.stopSpeaking();
+            navigate('/level/sociales');
+            return;
+          }
+
+          if (text.includes('people') || text.includes('célébrité') || text.includes('celebrite') || text.includes('star')) {
+            audioManager.stopSpeaking();
+            navigate('/level/people');
             return;
           }
         };

@@ -82,14 +82,30 @@ const Quiz = () => {
         const storage = createStorageService();
         let questions: Question[] = [];
 
+        // Mapping niveau → difficulty
+        const levelToDifficulty: Record<number, string> = {
+          1: 'easy',
+          2: 'medium',
+          3: 'hard',
+          4: 'hard',
+          5: 'hard',
+        };
+        const targetDifficulty = levelToDifficulty[parseInt(level || '1')];
+
         if (category === 'mixte') {
           const all = await storage.getQuestions();
-          questions = all.sort(() => Math.random() - 0.5).slice(0, 10);
+          // Filtrer par difficulty pour mixte aussi
+          const filtered = all.filter(q => q.difficulty === targetDifficulty);
+          questions = filtered.sort(() => Math.random() - 0.5).slice(0, 10);
         } else {
-          questions = await storage.getQuestionsByCategory(
-            category as Exclude<Category, 'mixte'>,
-            parseInt(level || '1') as Level
+          const categoryQuestions = await storage.getQuestionsByCategory(
+            category as Exclude<Category, 'mixte'>
           );
+          // Filtrer par difficulty
+          questions = categoryQuestions
+            .filter(q => q.difficulty === targetDifficulty)
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 10);
         }
 
         if (questions.length === 0) { navigate('/'); return; }
@@ -288,7 +304,11 @@ const Quiz = () => {
       if (!await playOrFallback(seg.explanation.key, seg.explanation.text, myToken)) return;
     }
 
-    if (!await playOrFallback(seg.next.key, seg.next.text, myToken)) return;
+    // Ne pas dire "question suivante" si c'est la dernière
+    const isLastQuestion = qi + 1 >= quizQuestions.length;
+    if (!isLastQuestion) {
+      if (!await playOrFallback(seg.next.key, seg.next.text, myToken)) return;
+    }
 
     handleNextQuestion();
   };
@@ -301,8 +321,9 @@ const Quiz = () => {
     const nextIndex = currentQuestionIndex + 1;
 
     if (nextIndex >= quizQuestions.length) {
-      await audioManager.speak('Quiz terminé ! Bravo !');
-      setTimeout(() => { endSession(); navigate('/results'); }, 2000);
+      await audioManager.speak('. Quiz terminé ! Bravo !');
+      endSession();
+      navigate('/results');
       return;
     }
 
@@ -347,8 +368,12 @@ const Quiz = () => {
       if (!await playOrFallback(seg.explanation.key, seg.explanation.text, myToken)) return;
     }
 
-    await audioManager.speak('Question suivante', { rate: 0.9 });
-    if (cancelTokenRef.current !== myToken) return;
+    // Ne pas dire "question suivante" si c'est la dernière
+    const isLastQuestion = qi + 1 >= quizQuestions.length;
+    if (!isLastQuestion) {
+      await audioManager.speak('Question suivante', { rate: 0.9 });
+      if (cancelTokenRef.current !== myToken) return;
+    }
 
     handleNextQuestion();
   };
@@ -391,11 +416,51 @@ const Quiz = () => {
         return;
       }
       
-      const matchedOption = q.options.find(opt => text.includes(opt.text.toLowerCase()));
+      // Normaliser le texte pour le matching
+      const normalizeForMatch = (str: string): string => {
+        return str
+          .toLowerCase()
+          .replace(/jr\.?$/i, 'junior')
+          .replace(/dr\.?\s/i, 'docteur ')
+          .replace(/mr\.?\s/i, 'monsieur ')
+          .replace(/mrs\.?\s/i, 'madame ')
+          .replace(/st\.?\s/i, 'saint ')
+          .replace(/[''\u2019]/g, "'")  // Apostrophes
+          .replace(/[\-–—]/g, ' ')  // Tirets
+          .replace(/\s+/g, ' ')  // Espaces multiples
+          .trim();
+      };
+
+      const normalizedTranscript = normalizeForMatch(text);
+      
+      // Chercher une correspondance avec l'option normalisée
+      const matchedOption = q.options.find(opt => {
+        const normalizedOption = normalizeForMatch(opt.text);
+        // Match exact ou contenu
+        return normalizedTranscript.includes(normalizedOption) || 
+               normalizedOption.includes(normalizedTranscript) ||
+               // Match partiel (au moins 60% des mots correspondent)
+               matchWordsPartial(normalizedTranscript, normalizedOption);
+      });
+      
       if (matchedOption) {
         handleAnswer(matchedOption.text, q);
       }
     }
+  };
+
+  // Match partiel : vérifie si au moins 60% des mots de l'option sont dans le transcript
+  const matchWordsPartial = (transcript: string, option: string): boolean => {
+    const transcriptWords = transcript.split(/\s+/).filter(w => w.length > 2);
+    const optionWords = option.split(/\s+/).filter(w => w.length > 2);
+    
+    if (optionWords.length === 0) return false;
+    
+    const matchCount = optionWords.filter(word => 
+      transcriptWords.some(tw => tw.includes(word) || word.includes(tw))
+    ).length;
+    
+    return matchCount / optionWords.length >= 0.6;
   };
 
   // ===== RENDER =====
@@ -416,7 +481,7 @@ const Quiz = () => {
   const { isListening } = audioManager.getState();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-12">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-16">
       <div className="mx-auto max-w-3xl">
         <div className="mb-4 flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={handleGoHome}>

@@ -53,30 +53,30 @@ export const AUDIO_CONFIG = {
     
     // Variations pour réponses correctes (tirage aléatoire)
     correct: [
-      "Excellent !",
-      "Parfait !",
-      "Bravo !",
-      "Bien joué !",
-      "Impressionnant !",
-      "C'est ça !",
-      "Tout à fait !",
-      "Magnifique !",
-      "Superbe !",
-      "Vous assurez !",
+      ". Excellent !",
+      ". Parfait !",
+      ". Bravo !",
+      ". Bien joué !",
+      ". Impressionnant !",
+      ". C'est ça !",
+      ". Tout à fait !",
+      ". Magnifique !",
+      ". Superbe !",
+      ". Vous assurez !",
     ],
     
     // Variations pour réponses incorrectes
     // Note: ". Pas" avec point avant pour éviter bug Kokoro qui tronque le P
     incorrect: [
-      "C'était :",
-      "Non, la réponse était :",
-      "Raté ! C'était :",
-      "Dommage ! La bonne réponse :",
-      ". Pas cette fois ! C'était :",
-      "Non ! La réponse correcte :",
+      ". C'était :",
+      ". Non, la réponse était :",
+      ". Raté ! C'était :",
+      ". Dommage ! La bonne réponse :",
+      ", Pas cette fois ! C'était :",
+      ". Non ! La réponse correcte :",
     ],
     
-    timeUp: "Temps écoulé !",
+    timeUp: "Temps, écoulé !",
     
     // Plus utilisés
     questionIntro: "",
@@ -127,6 +127,7 @@ export const PHONETIC_REPLACEMENTS: Record<string, string> = {
   'danseuse': 'danseuzze',
   'Danseuse': 'Danseuz',
   "l'Australie est": "l'Australie, est",
+  "pays est": "pays, est",
   
   // Chiffres romains (bug eSpeak dit "dix-huit romain" etc.)
   'Ier': 'premier',
@@ -193,17 +194,19 @@ export const PHONETIC_REPLACEMENTS: Record<string, string> = {
   'Swift': 'Sou-ifte',
   
   // Acteurs/Célébrités anglophones
-  'Robert Downey Jr': 'Robeurte Dauné Junior',
+  'Robert Downey Jr': 'Robèr Dauné Junior',
+  'Robert': 'Robèr',
   'Downey': 'Dauné',
   'Chris Hemsworth': 'Crisse Èmsweurse',
   'Hemsworth': 'Èmsweurse',
-  'Chris Evans': 'Crisse Évannse',
+  'Chris Evans': 'Crisse Eva-nce',
+  'Evans': 'Eva-nce',
   'Mark Ruffalo': 'Marc Reufalo',
   'Tony Stark': 'Toni Starc',
   'Tony': 'Toni',
   'Stark': 'Starc',
   'Iron Man': 'Aïronne Manne',
-  'Bong Joon-ho': 'Bong Djouno',
+  'Bong Joon-ho': 'Bong-Djouno',
   'Joon-ho': 'Djouno',
   
   // Films/Séries anglophones
@@ -261,7 +264,8 @@ export const PHONETIC_REPLACEMENTS: Record<string, string> = {
   'London': 'Leunndonne',
   'Hollywood': 'Holiwoude',
   'Vancouver': 'Vancouverre',
-  'Melbourne': 'Melbournne',
+  'Melbourne': 'Melbor-neu',
+  'Harvard': 'Harvar-de',
 };
 
 /**

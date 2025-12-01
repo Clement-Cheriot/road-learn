@@ -27,14 +27,18 @@ const Results = () => {
   const saveResults = async () => {
     if (!currentSession) return;
 
+    const correctCount = answers.filter(a => a.isCorrect).length;
+    const totalCount = currentSession.questions.length;
+
     const result: QuizResult = {
       sessionId: currentSession.id,
       category: currentSession.category,
-      totalQuestions: currentSession.questions.length,
-      correctAnswers: answers.filter(a => a.isCorrect).length,
+      level: currentSession.level,
+      totalQuestions: totalCount,
+      correctAnswers: correctCount,
       score: currentSession.score,
       maxScore: currentSession.maxScore,
-      accuracy: (answers.filter(a => a.isCorrect).length / currentSession.questions.length) * 100,
+      accuracy: (correctCount / totalCount) * 100,
       averageTime: answers.reduce((sum, a) => sum + a.timeSpent, 0) / answers.length,
       completedAt: new Date(),
     };
@@ -42,14 +46,53 @@ const Results = () => {
     try {
       const storage = createStorageService();
       await storage.saveQuizResult(result);
+
+      // Mettre à jour les stats utilisateur
+      const userProgress = await storage.getUserProgress();
+      if (userProgress && currentSession.category !== 'mixte') {
+        const cat = currentSession.category as Exclude<typeof currentSession.category, 'mixte'>;
+        const oldStats = userProgress.categoryStats[cat] || {
+          questionsAnswered: 0,
+          correctAnswers: 0,
+          accuracy: 0,
+          bestStreak: 0,
+        };
+        
+        const newQuestionsAnswered = oldStats.questionsAnswered + totalCount;
+        const newCorrectAnswers = oldStats.correctAnswers + correctCount;
+        const newAccuracy = newQuestionsAnswered > 0 
+          ? (newCorrectAnswers / newQuestionsAnswered) * 100 
+          : 0;
+
+        userProgress.categoryStats[cat] = {
+          ...oldStats,
+          questionsAnswered: newQuestionsAnswered,
+          correctAnswers: newCorrectAnswers,
+          accuracy: newAccuracy,
+        };
+
+        userProgress.totalQuizzes += 1;
+        userProgress.totalQuestions += totalCount;
+        userProgress.totalCorrectAnswers += correctCount;
+        userProgress.lastPlayedAt = new Date();
+
+        await storage.saveUserProgress(userProgress);
+      }
     } catch (error) {
       console.error('Erreur sauvegarde résultats:', error);
     }
   };
 
   const handlePlayAgain = () => {
+    const cat = currentSession?.category;
+    const lvl = currentSession?.level;
     resetQuiz();
-    navigate('/');
+    // Relancer le même quiz
+    if (cat && lvl) {
+      navigate(`/quiz/${cat}/${lvl}`);
+    } else {
+      navigate('/');
+    }
   };
 
   const handleHome = () => {
@@ -66,7 +109,7 @@ const Results = () => {
   const scorePercentage = Math.round((currentSession.score / currentSession.maxScore) * 100);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-12">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-16">
       <div className="mx-auto max-w-2xl">
         {/* Trophy Header */}
         <div className="mb-6 text-center">

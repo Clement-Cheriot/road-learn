@@ -1,26 +1,190 @@
 /**
  * Page de sélection de niveau pour une catégorie
+ * Affiche le nombre de questions et le meilleur score par niveau
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Lock, Star, Trophy } from 'lucide-react';
+import { ArrowLeft, Lock, Star, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useUserStore } from '@/stores/useUserStore';
 import { audioManager } from '@/services/AudioManager';
-import type { Category, Level } from '@/types/quiz.types';
+import { createStorageService } from '@/services/storage/StorageServiceFactory';
+import type { Category, Level, Question, QuizResult } from '@/types/quiz.types';
+
+// Mapping niveau → difficulty
+const LEVEL_TO_DIFFICULTY: Record<Level, string> = {
+  1: 'easy',
+  2: 'medium',
+  3: 'hard',
+  4: 'hard',  // Expert = hard aussi pour l'instant
+  5: 'hard',  // Maître = hard aussi
+};
 
 const LevelSelect = () => {
   const navigate = useNavigate();
   const { category } = useParams<{ category: string }>();
   const { progress } = useUserStore();
-  const [audioEnabled, setAudioEnabled] = useState(true);
+  
+  const [questionCounts, setQuestionCounts] = useState<Record<Level, number>>({
+    1: 0, 2: 0, 3: 0, 4: 0, 5: 0
+  });
+  const [bestScores, setBestScores] = useState<Record<Level, number | null>>({
+    1: null, 2: null, 3: null, 4: null, 5: null
+  });
+  const hasSpokenRef = useRef(false);
+  const progressRef = useRef(progress);
+  
+  // Garder une ref à jour de progress
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
 
   useEffect(() => {
-    // AudioManager est déjà initialisé par GlobalVoiceController
-    setAudioEnabled(true);
-  }, []);
+    loadStats();
+  }, [category]);
+
+  // Lecture vocale et écoute commandes
+  useEffect(() => {
+    if (!category || hasSpokenRef.current) return;
+    hasSpokenRef.current = true;
+
+    const checkCanPlay = (level: Level): boolean => {
+      // Pour mixte ou si premium, tout est jouable
+      if (category === 'mixte') return true;
+      if (level < 3) return true; // Niveaux 1-2 toujours débloqués
+      return progressRef.current?.hasPremium || false;
+    };
+
+    const initVoice = async () => {
+      await audioManager.stopSpeaking();
+      await audioManager.speak('. Choisis ton niveau : Facile, Moyen, Difficile, Expert ou Maître.');
+
+      const handleVoiceCommand = (transcript: string) => {
+        const text = transcript.toLowerCase().trim();
+
+        if (text.includes('retour') || text.includes('menu') || text.includes('accueil')) {
+          audioManager.stopSpeaking();
+          audioManager.stopListening();
+          navigate('/');
+          return;
+        }
+
+        // Commandes de niveau
+        if (text.includes('facile') || text.includes('niveau 1') || text.includes('un')) {
+          if (checkCanPlay(1)) {
+            audioManager.stopSpeaking();
+            audioManager.stopListening();
+            navigate(`/quiz/${category}/1`);
+          }
+          return;
+        }
+
+        if (text.includes('moyen') || text.includes('niveau 2') || text.includes('deux')) {
+          if (checkCanPlay(2)) {
+            audioManager.stopSpeaking();
+            audioManager.stopListening();
+            navigate(`/quiz/${category}/2`);
+          }
+          return;
+        }
+
+        if (text.includes('difficile') || text.includes('niveau 3') || text.includes('trois')) {
+          if (checkCanPlay(3)) {
+            audioManager.stopSpeaking();
+            audioManager.stopListening();
+            navigate(`/quiz/${category}/3`);
+          }
+          return;
+        }
+
+        if (text.includes('expert') || text.includes('niveau 4') || text.includes('quatre')) {
+          if (checkCanPlay(4)) {
+            audioManager.stopSpeaking();
+            audioManager.stopListening();
+            navigate(`/quiz/${category}/4`);
+          }
+          return;
+        }
+
+        if (text.includes('maître') || text.includes('maitre') || text.includes('niveau 5') || text.includes('cinq')) {
+          if (checkCanPlay(5)) {
+            audioManager.stopSpeaking();
+            audioManager.stopListening();
+            navigate(`/quiz/${category}/5`);
+          }
+          return;
+        }
+      };
+
+      audioManager.onSpeech(handleVoiceCommand);
+      await audioManager.startListening();
+    };
+
+    initVoice();
+
+    return () => {
+      audioManager.stopListening();
+      hasSpokenRef.current = false;
+    };
+  }, [category, navigate]);
+
+  const loadStats = async () => {
+    if (!category) return;
+    
+    const storage = createStorageService();
+    
+    // Charger les questions pour compter par niveau
+    const allQuestions = await storage.getQuestions();
+    const counts: Record<Level, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    
+    if (category === 'mixte') {
+      // Pour mixte, compter toutes les questions par difficulty
+      allQuestions.forEach(q => {
+        if (q.difficulty === 'easy') counts[1]++;
+        else if (q.difficulty === 'medium') counts[2]++;
+        else if (q.difficulty === 'hard') {
+          counts[3]++;
+          counts[4]++;
+          counts[5]++;
+        }
+      });
+      // Diviser les hard entre les 3 niveaux
+      const hardCount = counts[3];
+      counts[3] = Math.floor(hardCount / 3);
+      counts[4] = Math.floor(hardCount / 3);
+      counts[5] = hardCount - counts[3] - counts[4];
+    } else {
+      // Pour une catégorie spécifique
+      const categoryQuestions = allQuestions.filter(q => q.category === category);
+      categoryQuestions.forEach(q => {
+        if (q.difficulty === 'easy') counts[1]++;
+        else if (q.difficulty === 'medium') counts[2]++;
+        else if (q.difficulty === 'hard') {
+          counts[3]++;
+        }
+      });
+    }
+    
+    setQuestionCounts(counts);
+    
+    // Charger les meilleurs scores
+    const results = await storage.getQuizResults(100);
+    const best: Record<Level, number | null> = { 1: null, 2: null, 3: null, 4: null, 5: null };
+    
+    results.forEach(result => {
+      if (result.category === category) {
+        const level = (result as any).level as Level || 1;
+        const accuracy = result.accuracy;
+        if (best[level] === null || accuracy > best[level]!) {
+          best[level] = Math.round(accuracy);
+        }
+      }
+    });
+    
+    setBestScores(best);
+  };
 
   const getCategoryLabel = (cat: string): string => {
     const labels: Record<string, string> = {
@@ -33,6 +197,7 @@ const LevelSelect = () => {
       'sciences-technologie': 'Sciences & Technologie',
       sociales: 'Sociales',
       people: 'People',
+      mixte: 'Quiz Mixte',
     };
     return labels[cat] || cat;
   };
@@ -48,6 +213,7 @@ const LevelSelect = () => {
       'sciences-technologie': '🔬',
       sociales: '👥',
       people: '⭐',
+      mixte: '🎲',
     };
     return emojis[cat] || '❓';
   };
@@ -55,11 +221,7 @@ const LevelSelect = () => {
   const isLevelUnlocked = (level: Level): boolean => {
     if (!progress || !category) return false;
     if (category === 'mixte') return true;
-    return (
-      progress.unlockedLevels[category as Exclude<Category, 'mixte'>]?.includes(
-        level
-      ) || false
-    );
+    return progress.unlockedLevels[category as Exclude<Category, 'mixte'>]?.includes(level) || false;
   };
 
   const isLevelPremium = (level: Level): boolean => {
@@ -69,18 +231,13 @@ const LevelSelect = () => {
   const canPlayLevel = (level: Level): boolean => {
     const unlocked = isLevelUnlocked(level);
     const isPremium = isLevelPremium(level);
-
     if (!isPremium) return unlocked;
     return unlocked && (progress?.hasPremium || false);
   };
 
   const startLevel = async (level: Level) => {
     if (!canPlayLevel(level)) return;
-
-    if (audioEnabled) {
-      // ⬇️ UTILISER LE REF
-      await audioServiceRef.current.speak(`Démarrage du niveau ${level}`);
-    }
+    await audioManager.stopSpeaking();
     navigate(`/quiz/${category}/${level}`);
   };
 
@@ -95,15 +252,24 @@ const LevelSelect = () => {
     return difficulties[level];
   };
 
-  const getLevelDescription = (level: Level): string => {
-    const descriptions: Record<Level, string> = {
-      1: 'Idéal pour débuter et apprendre les bases',
-      2: 'Questions intermédiaires pour progresser',
-      3: 'Défi relevé pour les connaisseurs',
-      4: 'Questions pointues pour les experts',
-      5: 'Le niveau ultime des maîtres',
+  const getLevelColor = (level: Level): string => {
+    const colors: Record<Level, string> = {
+      1: 'text-green-400',
+      2: 'text-blue-400',
+      3: 'text-yellow-400',
+      4: 'text-orange-400',
+      5: 'text-red-400',
     };
-    return descriptions[level];
+    return colors[level];
+  };
+
+  // Convertir score en étoiles (1-3)
+  const getStars = (score: number | null): string => {
+    if (score === null) return '';
+    if (score >= 80) return '⭐⭐⭐';
+    if (score >= 60) return '⭐⭐';
+    if (score >= 40) return '⭐';
+    return '○';
   };
 
   if (!category) {
@@ -111,149 +277,114 @@ const LevelSelect = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 p-3 md:p-8 pt-12">
-      <div className="mx-auto max-w-4xl">
+    <div className="min-h-screen bg-gradient-to-br from-quiz-dark to-black p-4 pt-16">
+      <div className="mx-auto max-w-md">
+        
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-4">
           <Button
             variant="ghost"
-            onClick={() => navigate('/')}
-            className="mb-3"
             size="sm"
+            onClick={() => navigate('/')}
+            className="mb-3 text-muted-foreground"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Retour
           </Button>
 
-          <div className="text-center">
-            <div className="mb-3 text-5xl">{getCategoryEmoji(category)}</div>
-            <h1 className="mb-2 text-2xl font-bold">
-              {getCategoryLabel(category)}
-            </h1>
-            <p className="text-sm text-muted-foreground">Choisis ton niveau</p>
-          </div>
+          <Card className="flex items-center gap-3 bg-gradient-to-br from-primary/80 to-primary p-4">
+            <span className="text-4xl">{getCategoryEmoji(category)}</span>
+            <div>
+              <h1 className="text-xl font-bold text-white">
+                {getCategoryLabel(category)}
+              </h1>
+              <p className="text-xs text-white/70">Choisis ton niveau</p>
+            </div>
+          </Card>
         </div>
 
-        {/* Niveaux */}
-        <div className="grid gap-3">
+        {/* Niveaux - Liste compacte */}
+        <Card className="mb-4 divide-y divide-white/10 bg-gradient-to-br from-primary/80 to-primary">
           {([1, 2, 3, 4, 5] as Level[]).map((level) => {
             const unlocked = isLevelUnlocked(level);
             const isPremium = isLevelPremium(level);
             const canPlay = canPlayLevel(level);
+            const qCount = questionCounts[level];
+            const best = bestScores[level];
 
             return (
-              <Card
+              <div
                 key={level}
-                className={`group overflow-hidden transition-all ${
-                  canPlay
-                    ? 'cursor-pointer active:scale-95 hover:shadow-primary'
-                    : 'opacity-60'
+                className={`flex items-center justify-between p-4 transition-colors ${
+                  canPlay ? 'cursor-pointer active:bg-white/5' : 'opacity-50'
                 }`}
                 onClick={() => canPlay && startLevel(level)}
               >
-                <div className="p-4">
-                  <div className="mb-3 flex items-start justify-between">
-                    <div>
-                      <div className="mb-1 flex items-center gap-2">
-                        <h3 className="text-xl font-bold">Niveau {level}</h3>
-                        {isPremium && (
-                          <span className="rounded-full bg-gradient-primary px-2 py-0.5 text-xs text-white">
-                            Premium
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs font-medium text-primary">
-                        {getLevelDifficulty(level)}
-                      </p>
-                    </div>
-
-                    {!unlocked ? (
-                      <Lock className="h-5 w-5 text-muted-foreground" />
-                    ) : !canPlay ? (
-                      <Lock className="h-5 w-5 text-warning" />
-                    ) : (
-                      <Star className="h-5 w-5 text-success" />
-                    )}
+                <div className="flex items-center gap-4">
+                  {/* Numéro niveau */}
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ${
+                    canPlay ? 'border-white bg-white/20' : 'border-white/30 bg-white/10'
+                  }`}>
+                    <span className={`text-lg font-bold ${canPlay ? 'text-white' : 'text-white/50'}`}>
+                      {level}
+                    </span>
                   </div>
+                  
+                  {/* Infos niveau */}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium ${getLevelColor(level)}`}>
+                        {getLevelDifficulty(level)}
+                      </span>
+                      {isPremium && (
+                        <Crown className="h-3 w-3 text-yellow-400" />
+                      )}
+                    </div>
+                    <span className="text-xs text-white/70">
+                      {qCount} questions
+                    </span>
+                  </div>
+                </div>
 
-                  <p className="mb-3 text-xs text-muted-foreground">
-                    {getLevelDescription(level)}
-                  </p>
-
-                  {progress && category !== 'mixte' && (
-                    <div className="mb-3 rounded-lg bg-muted/50 p-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">
-                          Progression
-                        </span>
-                        <span className="font-bold text-primary">
-                          {progress.categoryStats[
-                            category as Exclude<Category, 'mixte'>
-                          ]?.accuracy.toFixed(0)}
-                          %
-                        </span>
-                      </div>
+                {/* Score / État */}
+                <div className="flex items-center gap-2">
+                  {best !== null && (
+                    <div className="text-right">
+                      <span className="text-sm">{getStars(best)}</span>
+                      <p className="text-xs text-white/70">{best}%</p>
                     </div>
                   )}
-
-                  {canPlay ? (
-                    <Button variant="default" size="sm" className="w-full">
-                      <Trophy className="mr-2 h-3 w-3" />
-                      Commencer
-                    </Button>
-                  ) : !unlocked ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      disabled
-                    >
-                      <Lock className="mr-2 h-3 w-3" />
-                      Verrouillé
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        console.log('Ouvrir achat premium');
-                      }}
-                    >
-                      <Lock className="mr-2 h-3 w-3" />
-                      Débloquer
-                    </Button>
-                  )}
+                  {!unlocked ? (
+                    <Lock className="h-5 w-5 text-white/50" />
+                  ) : !canPlay ? (
+                    <Lock className="h-5 w-5 text-yellow-400" />
+                  ) : best === null ? (
+                    <Star className="h-5 w-5 text-white/30" />
+                  ) : null}
                 </div>
-              </Card>
+              </div>
             );
           })}
-        </div>
+        </Card>
 
         {/* Info Premium */}
         {!progress?.hasPremium && (
-          <Card className="mt-6 border-primary/20 bg-gradient-primary/10 p-4">
-            <div className="text-center">
-              <Trophy className="mx-auto mb-3 h-10 w-10 text-primary" />
-              <h3 className="mb-2 text-lg font-bold">
-                Débloquez tous les niveaux !
-              </h3>
-              <p className="mb-3 text-xs text-muted-foreground">
-                Niveaux 3, 4 et 5 avec Premium
-              </p>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => {
-                  console.log('Ouvrir achat premium');
-                }}
-              >
-                Obtenir Premium
+          <Card className="border-yellow-400/30 bg-yellow-400/10 p-4">
+            <div className="flex items-center gap-3">
+              <Crown className="h-8 w-8 text-yellow-400" />
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-white">Premium</h3>
+                <p className="text-xs text-muted-foreground">
+                  Débloquez les niveaux 3, 4 et 5
+                </p>
+              </div>
+              <Button size="sm" variant="default">
+                Obtenir
               </Button>
             </div>
           </Card>
         )}
+
       </div>
     </div>
   );
